@@ -83,7 +83,7 @@ async def cmd_start(message: types.Message):
     # Auto-register first user as admin
     register_admin(message.from_user.id)
 
-    webapp_url = WEBAPP_URL or "https://breakwave-bot.up.railway.app"
+    webapp_url = WEBAPP_URL or "https://web-production-7b91a.up.railway.app"
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
@@ -194,7 +194,7 @@ async def excel_cancel(callback: CallbackQuery):
 @router.callback_query(F.data == "notify_update")
 async def notify_update(callback: CallbackQuery):
     await callback.message.edit_text("📢 Отправляю уведомления...")
-    webapp_url = WEBAPP_URL or "https://breakwave-bot.up.railway.app"
+    webapp_url = WEBAPP_URL or "https://web-production-7b91a.up.railway.app"
 
     count = await send_notification_to_all(
         "🏆 <b>Рейтинг обновлён!</b>\n\n"
@@ -362,7 +362,7 @@ async def event_save(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.edit_text("✅ Мероприятие добавлено!")
 
-    webapp_url = WEBAPP_URL or "https://breakwave-bot.up.railway.app"
+    webapp_url = WEBAPP_URL or "https://web-production-7b91a.up.railway.app"
     count = await send_notification_to_all(
         f"📅 <b>Новое мероприятие!</b>\n\n"
         f"🏆 {data['name']}\n"
@@ -463,7 +463,7 @@ async def cmd_notify(message: types.Message, state: FSMContext):
 
 @router.message(NotifyForm.message)
 async def notify_send(message: types.Message, state: FSMContext):
-    webapp_url = WEBAPP_URL or "https://breakwave-bot.up.railway.app"
+    webapp_url = WEBAPP_URL or "https://web-production-7b91a.up.railway.app"
     count = await send_notification_to_all(message.text, webapp_url)
     await message.answer(f"✅ Уведомление отправлено {count} подписчикам!")
     await state.clear()
