@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Break Wave Ranking</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header id="header">
+            <button id="btn-back" class="header-btn hidden" onclick="goBack()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="header-title">
+                <img src="assets/logo.png" alt="BW" class="header-logo" onerror="this.style.display='none'">
+                <span id="header-text">BREAK WAVE</span>
+            </div>
+            <div class="header-spacer"></div>
+        </header>
+
+        <!-- Screens container -->
+        <main id="content">
+            <!-- Home Screen -->
+            <div id="screen-home" class="screen active">
+                <div class="home-hero">
+                    <div class="hero-wave"></div>
+                    <h1 class="hero-title">BREAK WAVE</h1>
+                    <p class="hero-subtitle" id="season-name">RANKING SYSTEM</p>
+                </div>
+                <div class="menu-grid">
+                    <button class="menu-card" onclick="navigate('ranking')">
+                        <div class="menu-icon">🏆</div>
+                        <div class="menu-label">Общий рейтинг</div>
+                        <div class="menu-desc">Все участники</div>
+                    </button>
+                    <button class="menu-card" onclick="navigate('nominations')">
+                        <div class="menu-icon">🏅</div>
+                        <div class="menu-label">По номинациям</div>
+                        <div class="menu-desc">7 категорий</div>
+                    </button>
+                    <button class="menu-card" onclick="navigate('events')">
+                        <div class="menu-icon">📅</div>
+                        <div class="menu-label">Мероприятия</div>
+                        <div class="menu-desc">Расписание</div>
+                    </button>
+                    <button class="menu-card" onclick="navigate('search')">
+                        <div class="menu-icon">🔍</div>
+                        <div class="menu-label">Найти участника</div>
+                        <div class="menu-desc">Поиск по имени</div>
+                    </button>
+                    <button class="menu-card wide" onclick="navigate('dashboard')">
+                        <div class="menu-icon">📊</div>
+                        <div class="menu-label">Дашборд</div>
+                        <div class="menu-desc">Топ-3 по номинациям</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Ranking Screen -->
+            <div id="screen-ranking" class="screen">
+                <div class="screen-title">🏆 Общий рейтинг</div>
+                <div id="ranking-list" class="list-container"></div>
+            </div>
+
+            <!-- Nominations Screen -->
+            <div id="screen-nominations" class="screen">
+                <div class="screen-title">🏅 Номинации</div>
+                <div id="nominations-grid" class="nom-grid"></div>
+            </div>
+
+            <!-- Nomination Detail Screen -->
+            <div id="screen-nomination-detail" class="screen">
+                <div class="screen-title" id="nom-detail-title"></div>
+                <div id="nom-detail-list" class="list-container"></div>
+            </div>
+
+            <!-- Events Screen -->
+            <div id="screen-events" class="screen">
+                <div class="screen-title">📅 Мероприятия</div>
+                <div class="tab-bar">
+                    <button class="tab active" onclick="switchEventTab('school', this)">🏠 Break Wave</button>
+                    <button class="tab" onclick="switchEventTab('external', this)">🌍 Другие</button>
+                </div>
+                <div id="events-list" class="events-container"></div>
+            </div>
+
+            <!-- Event Detail Screen -->
+            <div id="screen-event-detail" class="screen">
+                <div id="event-detail-content"></div>
+            </div>
+
+            <!-- Event Results Screen -->
+            <div id="screen-event-results" class="screen">
+                <div class="screen-title" id="event-results-title"></div>
+                <div id="event-results-list" class="list-container"></div>
+            </div>
+
+            <!-- Search Screen -->
+            <div id="screen-search" class="screen">
+                <div class="screen-title">🔍 Найти участника</div>
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="Введи имя..." oninput="onSearch(this.value)">
+                </div>
+                <div id="search-results" class="list-container"></div>
+                <div id="all-participants" class="list-container"></div>
+            </div>
+
+            <!-- Participant Card Screen -->
+            <div id="screen-participant" class="screen">
+                <div id="participant-card"></div>
+            </div>
+
+            <!-- Dashboard Screen -->
+            <div id="screen-dashboard" class="screen">
+                <div class="screen-title">📊 Дашборд</div>
+                <div class="screen-subtitle">Топ-3 в каждой номинации</div>
+                <div id="dashboard-content"></div>
+            </div>
+
+            <!-- Seasons Screen -->
+            <div id="screen-seasons" class="screen">
+                <div class="screen-title">📂 История сезонов</div>
+                <div id="seasons-list" class="list-container"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+data/breakwave.db
+data/upload.xlsx
+data/event_*.jpg
+.env
+*.egg-info/
