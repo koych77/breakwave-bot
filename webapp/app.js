@@ -29,9 +29,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await checkAdmin();
     await checkUserRole();
 
-    // Check hash for deep link
+    // Check hash for deep link (ignore Telegram params in hash)
     const hash = window.location.hash.replace('#', '');
-    if (hash && hash !== '') {
+    if (hash && hash !== '' && !hash.startsWith('tgWebApp')) {
         navigate(hash);
     } else {
         loadHome();
