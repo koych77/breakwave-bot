@@ -24,6 +24,8 @@ class Participant(Base):
     nomination = Column(String(100), nullable=False)
     season_id = Column(Integer, ForeignKey("seasons.id"), nullable=False)
     telegram_id = Column(BigInteger, nullable=True)
+    phone = Column(String(50), nullable=True)
+    age = Column(Integer, nullable=True)
 
     season = relationship("Season", back_populates="participants")
     results = relationship("Result", back_populates="participant", cascade="all, delete-orphan")

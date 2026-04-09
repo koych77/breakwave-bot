@@ -1010,6 +1010,26 @@ select.form-input option {
     margin-top: 2px;
 }
 
+.btn-icon-edit {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: rgba(0, 191, 255, 0.1);
+    color: var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-size: 16px;
+    transition: all 0.2s;
+}
+
+.btn-icon-edit:active {
+    background: rgba(0, 191, 255, 0.3);
+}
+
 .btn-icon-danger {
     width: 36px;
     height: 36px;

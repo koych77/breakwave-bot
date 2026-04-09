@@ -272,7 +272,7 @@ async def get_participants(season_id: int = None):
         result = await s.execute(
             select(Participant).where(Participant.season_id == season_id).order_by(Participant.name)
         )
-        return [{"id": p.id, "name": p.name, "nomination": p.nomination} for p in result.scalars().all()]
+        return [{"id": p.id, "name": p.name, "nomination": p.nomination, "phone": p.phone, "age": p.age, "telegram_id": p.telegram_id} for p in result.scalars().all()]
 
 
 @app.get("/api/participants/search")
@@ -291,7 +291,7 @@ async def search_participants(q: str = "", season_id: int = None):
                 Participant.name.ilike(f"%{q}%")
             ).order_by(Participant.name)
         )
-        return [{"id": p.id, "name": p.name, "nomination": p.nomination} for p in result.scalars().all()]
+        return [{"id": p.id, "name": p.name, "nomination": p.nomination, "phone": p.phone, "age": p.age, "telegram_id": p.telegram_id} for p in result.scalars().all()]
 
 
 @app.get("/api/participants/{participant_id}")
@@ -617,7 +617,13 @@ async def admin_create_participant(request: Request):
         if not season:
             return JSONResponse({"error": "no active season"}, 400)
 
-        p = Participant(name=body["name"], nomination=body["nomination"], season_id=season.id)
+        p = Participant(
+            name=body["name"],
+            nomination=body["nomination"],
+            season_id=season.id,
+            phone=body.get("phone") or None,
+            age=int(body["age"]) if body.get("age") else None,
+        )
         s.add(p)
         await s.flush()
 
@@ -630,6 +636,28 @@ async def admin_create_participant(request: Request):
 
         await s.commit()
         return {"success": True, "id": p.id}
+
+
+@app.put("/api/admin/participants/{participant_id}")
+async def admin_update_participant(participant_id: int, request: Request):
+    body = await request.json()
+    user = await check_admin(body.get("initData", ""))
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    async with async_session() as s:
+        result = await s.execute(select(Participant).where(Participant.id == participant_id))
+        p = result.scalar_one_or_none()
+        if not p:
+            return JSONResponse({"error": "not found"}, 404)
+
+        for field in ["name", "nomination", "phone"]:
+            if field in body and body[field] is not None:
+                setattr(p, field, body[field])
+        if "age" in body:
+            p.age = int(body["age"]) if body["age"] else None
+        await s.commit()
+        return {"success": True}
 
 
 @app.delete("/api/admin/participants/{participant_id}")
@@ -852,6 +880,37 @@ async def user_check(request: Request):
             select(Subscriber).where(Subscriber.telegram_id == telegram_id)
         )
         sub = result.scalar_one_or_none()
+
+        # Auto-link: check if a participant record has this telegram_id
+        auto_part = await s.execute(
+            select(Participant).where(Participant.telegram_id == telegram_id)
+        )
+        auto_participant = auto_part.scalar_one_or_none()
+
+        if auto_participant:
+            # Auto-create or update subscriber with participant link
+            if not sub:
+                sub = Subscriber(
+                    telegram_id=telegram_id,
+                    first_name=user.get("first_name"),
+                    username=user.get("username"),
+                    is_active=True,
+                    role="participant",
+                    linked_participant_id=auto_participant.id,
+                )
+                s.add(sub)
+                await s.commit()
+            elif not sub.linked_participant_id:
+                sub.role = "participant"
+                sub.linked_participant_id = auto_participant.id
+                await s.commit()
+
+            return {
+                "role": "participant",
+                "first_name": user.get("first_name"),
+                "participant": {"id": auto_participant.id, "name": auto_participant.name, "nomination": auto_participant.nomination},
+            }
+
         if not sub or not sub.role or sub.role == "":
             return {"role": None}
         data = {"role": sub.role, "first_name": sub.first_name}

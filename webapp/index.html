@@ -201,7 +201,7 @@
             <!-- Admin: Events -->
             <div id="screen-admin-events" class="screen">
                 <div class="screen-title">📅 Управление мероприятиями</div>
-                <button class="btn-primary" onclick="navigate('admin-event-form')" style="margin-bottom:16px">+ Добавить мероприятие</button>
+                <button class="btn-primary" onclick="openNewEventForm()" style="margin-bottom:16px">+ Добавить мероприятие</button>
                 <div id="admin-events-list" class="list-container"></div>
             </div>
 
@@ -248,7 +248,19 @@
                         <label class="form-label">Контакт</label>
                         <input type="text" id="ef-contact" class="form-input" placeholder="@username">
                     </div>
-                    <button class="btn-primary" onclick="saveEvent()">💾 Сохранить</button>
+                    <div class="form-group">
+                        <label class="form-label">Статус</label>
+                        <select id="ef-status" class="form-input">
+                            <option value="upcoming">Предстоит</option>
+                            <option value="completed">Завершено</option>
+                            <option value="locked">Закрыто</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Множитель баллов</label>
+                        <input type="number" id="ef-multiplier" class="form-input" value="1" min="1" max="5">
+                    </div>
+                    <button class="btn-primary" id="ef-btn-save" onclick="saveEvent()">💾 Сохранить</button>
                     <div id="event-form-result"></div>
                 </div>
             </div>
@@ -256,16 +268,16 @@
             <!-- Admin: Participants -->
             <div id="screen-admin-participants" class="screen">
                 <div class="screen-title">👥 Управление участниками</div>
-                <button class="btn-primary" onclick="navigate('admin-participant-form')" style="margin-bottom:16px">+ Добавить участника</button>
+                <button class="btn-primary" onclick="openNewParticipantForm()" style="margin-bottom:16px">+ Добавить участника</button>
                 <div id="admin-participants-list" class="list-container"></div>
             </div>
 
-            <!-- Admin: Add Participant -->
+            <!-- Admin: Add/Edit Participant -->
             <div id="screen-admin-participant-form" class="screen">
-                <div class="screen-title">👥 Новый участник</div>
+                <div class="screen-title" id="participant-form-title">👥 Новый участник</div>
                 <div class="admin-form">
                     <div class="form-group">
-                        <label class="form-label">Имя *</label>
+                        <label class="form-label">Имя и фамилия *</label>
                         <input type="text" id="pf-name" class="form-input" placeholder="Bboy Nickname">
                     </div>
                     <div class="form-group">
@@ -274,7 +286,15 @@
                             <option value="">Выбери номинацию</option>
                         </select>
                     </div>
-                    <button class="btn-primary" onclick="saveParticipant()">💾 Добавить</button>
+                    <div class="form-group">
+                        <label class="form-label">Телефон</label>
+                        <input type="tel" id="pf-phone" class="form-input" placeholder="+7 999 123-45-67">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Возраст</label>
+                        <input type="number" id="pf-age" class="form-input" placeholder="12" min="3" max="99">
+                    </div>
+                    <button class="btn-primary" id="pf-btn-save" onclick="saveParticipant()">💾 Добавить</button>
                     <div id="participant-form-result"></div>
                 </div>
             </div>

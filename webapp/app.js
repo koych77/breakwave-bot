@@ -9,6 +9,8 @@ let currentEventTab = 'school';
 let isAdmin = false;
 let initData = '';
 let newEventType = 'school';
+let editingEventId = null;
+let editingParticipantId = null;
 let userRole = null;
 let linkedParticipant = null;
 
@@ -671,10 +673,11 @@ async function loadAdminEvents() {
         const typeIcon = e.event_type === 'school' ? '🏠' : '🌍';
         return `
             <div class="admin-event-item">
-                <div class="admin-event-info">
+                <div class="admin-event-info" onclick="editEvent(${e.id})" style="cursor:pointer">
                     <div class="admin-event-name">${e.emoji} ${esc(e.name)}</div>
                     <div class="admin-event-meta">${typeIcon} ${e.event_type === 'school' ? 'Break Wave' : 'Другое'} · ${e.date || 'без даты'} · ${e.status}</div>
                 </div>
+                <button class="btn-icon-edit" onclick="editEvent(${e.id})">✏️</button>
                 <button class="btn-icon-danger" onclick="deleteEvent(${e.id}, '${esc(e.name)}')">🗑</button>
             </div>
         `;
@@ -706,6 +709,55 @@ function setEventType(type, btn) {
     btn.classList.add('active');
 }
 
+function openNewEventForm() {
+    editingEventId = null;
+    document.getElementById('event-form-title').textContent = '📅 Новое мероприятие';
+    document.getElementById('ef-btn-save').textContent = '💾 Сохранить';
+    ['ef-name', 'ef-date', 'ef-time', 'ef-location', 'ef-description', 'ef-fee', 'ef-contact'].forEach(id => {
+        document.getElementById(id).value = '';
+    });
+    document.getElementById('ef-emoji').value = '🏆';
+    document.getElementById('ef-status').value = 'upcoming';
+    document.getElementById('ef-multiplier').value = '1';
+    document.getElementById('event-form-result').innerHTML = '';
+    newEventType = 'school';
+    // Reset tab buttons
+    const tabs = document.querySelectorAll('#screen-admin-event-form .tab');
+    tabs.forEach(t => { t.classList.remove('active'); });
+    if (tabs[0]) tabs[0].classList.add('active');
+    navigate('admin-event-form');
+}
+
+async function editEvent(id) {
+    editingEventId = id;
+    const e = await api(`/api/events/${id}`);
+    if (!e) { alert('Не найдено'); return; }
+
+    document.getElementById('event-form-title').textContent = '✏️ Редактировать';
+    document.getElementById('ef-btn-save').textContent = '💾 Сохранить изменения';
+    document.getElementById('ef-name').value = e.name || '';
+    document.getElementById('ef-emoji').value = e.emoji || '🏆';
+    document.getElementById('ef-date').value = e.date || '';
+    document.getElementById('ef-time').value = e.time || '';
+    document.getElementById('ef-location').value = e.location || '';
+    document.getElementById('ef-description').value = e.description || '';
+    document.getElementById('ef-fee').value = e.fee || '';
+    document.getElementById('ef-contact').value = e.contact || '';
+    document.getElementById('ef-status').value = e.status || 'upcoming';
+    document.getElementById('ef-multiplier').value = e.multiplier || 1;
+    document.getElementById('event-form-result').innerHTML = '';
+
+    newEventType = e.event_type || 'school';
+    const tabs = document.querySelectorAll('#screen-admin-event-form .tab');
+    tabs.forEach(t => {
+        t.classList.remove('active');
+        if (t.textContent.includes('Break Wave') && newEventType === 'school') t.classList.add('active');
+        if (t.textContent.includes('Другое') && newEventType === 'external') t.classList.add('active');
+    });
+
+    navigate('admin-event-form');
+}
+
 async function saveEvent() {
     const name = document.getElementById('ef-name').value.trim();
     if (!name) { alert('Введи название'); return; }
@@ -724,22 +776,34 @@ async function saveEvent() {
         description: document.getElementById('ef-description').value.trim() || null,
         fee: document.getElementById('ef-fee').value.trim() || null,
         contact: document.getElementById('ef-contact').value.trim() || null,
+        status: document.getElementById('ef-status').value || 'upcoming',
+        multiplier: parseInt(document.getElementById('ef-multiplier').value) || 1,
     };
 
     try {
-        const res = await fetch(`${API}/api/admin/events`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(body),
-        });
+        let res;
+        if (editingEventId) {
+            res = await fetch(`${API}/api/admin/events/${editingEventId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body),
+            });
+        } else {
+            res = await fetch(`${API}/api/admin/events`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body),
+            });
+        }
         const data = await res.json();
         if (data.success) {
-            result.innerHTML = '<div class="result-success">✅ Мероприятие добавлено!</div>';
-            // Clear form
-            ['ef-name', 'ef-date', 'ef-time', 'ef-location', 'ef-description', 'ef-fee', 'ef-contact'].forEach(id => {
-                document.getElementById(id).value = '';
-            });
-            document.getElementById('ef-emoji').value = '🏆';
+            result.innerHTML = `<div class="result-success">✅ ${editingEventId ? 'Сохранено!' : 'Мероприятие добавлено!'}</div>`;
+            if (!editingEventId) {
+                ['ef-name', 'ef-date', 'ef-time', 'ef-location', 'ef-description', 'ef-fee', 'ef-contact'].forEach(id => {
+                    document.getElementById(id).value = '';
+                });
+                document.getElementById('ef-emoji').value = '🏆';
+            }
         } else {
             result.innerHTML = `<div class="result-error">❌ ${data.error || 'Ошибка'}</div>`;
         }
@@ -759,15 +823,22 @@ async function loadAdminParticipants() {
         return;
     }
 
-    container.innerHTML = data.map(p => `
-        <div class="admin-event-item">
-            <div class="admin-event-info">
-                <div class="admin-event-name">${esc(p.name)}</div>
-                <div class="admin-event-meta">${esc(p.nomination)}</div>
+    container.innerHTML = data.map(p => {
+        const meta = [esc(p.nomination)];
+        if (p.age) meta.push(`${p.age} лет`);
+        if (p.phone) meta.push(esc(p.phone));
+        if (p.telegram_id) meta.push('TG ✓');
+        return `
+            <div class="admin-event-item">
+                <div class="admin-event-info" onclick="editParticipant(${p.id})" style="cursor:pointer">
+                    <div class="admin-event-name">${esc(p.name)}</div>
+                    <div class="admin-event-meta">${meta.join(' · ')}</div>
+                </div>
+                <button class="btn-icon-edit" onclick="editParticipant(${p.id})">✏️</button>
+                <button class="btn-icon-danger" onclick="deleteParticipant(${p.id}, '${esc(p.name)}')">🗑</button>
             </div>
-            <button class="btn-icon-danger" onclick="deleteParticipant(${p.id}, '${esc(p.name)}')">🗑</button>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 async function deleteParticipant(id, name) {
@@ -788,25 +859,73 @@ async function deleteParticipant(id, name) {
     }
 }
 
+function openNewParticipantForm() {
+    editingParticipantId = null;
+    document.getElementById('participant-form-title').textContent = '👥 Новый участник';
+    document.getElementById('pf-btn-save').textContent = '💾 Добавить';
+    ['pf-name', 'pf-phone'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('pf-age').value = '';
+    document.getElementById('pf-nomination').value = '';
+    document.getElementById('participant-form-result').innerHTML = '';
+    navigate('admin-participant-form');
+}
+
+async function editParticipant(id) {
+    editingParticipantId = id;
+    // Fetch participant data
+    const data = await api('/api/participants');
+    const p = data ? data.find(x => x.id === id) : null;
+    if (!p) { alert('Не найдено'); return; }
+
+    document.getElementById('participant-form-title').textContent = '✏️ Редактировать участника';
+    document.getElementById('pf-btn-save').textContent = '💾 Сохранить изменения';
+    document.getElementById('pf-name').value = p.name || '';
+    document.getElementById('pf-phone').value = p.phone || '';
+    document.getElementById('pf-age').value = p.age || '';
+    document.getElementById('participant-form-result').innerHTML = '';
+
+    // Load nominations first, then set value
+    await loadParticipantForm();
+    document.getElementById('pf-nomination').value = p.nomination || '';
+
+    navigate('admin-participant-form');
+}
+
 async function saveParticipant() {
     const name = document.getElementById('pf-name').value.trim();
     const nomination = document.getElementById('pf-nomination').value;
+    const phone = document.getElementById('pf-phone').value.trim();
+    const age = document.getElementById('pf-age').value.trim();
     const result = document.getElementById('participant-form-result');
 
     if (!name || !nomination) { alert('Заполни имя и номинацию'); return; }
     result.innerHTML = '';
 
+    const body = {initData, name, nomination, phone: phone || null, age: age || null};
+
     try {
-        const res = await fetch(`${API}/api/admin/participants`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({initData, name, nomination}),
-        });
+        let res;
+        if (editingParticipantId) {
+            res = await fetch(`${API}/api/admin/participants/${editingParticipantId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body),
+            });
+        } else {
+            res = await fetch(`${API}/api/admin/participants`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body),
+            });
+        }
         const data = await res.json();
         if (data.success) {
-            result.innerHTML = '<div class="result-success">✅ Участник добавлен!</div>';
-            document.getElementById('pf-name').value = '';
-            document.getElementById('pf-nomination').value = '';
+            result.innerHTML = `<div class="result-success">✅ ${editingParticipantId ? 'Сохранено!' : 'Участник добавлен!'}</div>`;
+            if (!editingParticipantId) {
+                ['pf-name', 'pf-phone'].forEach(id => { document.getElementById(id).value = ''; });
+                document.getElementById('pf-age').value = '';
+                document.getElementById('pf-nomination').value = '';
+            }
         } else {
             result.innerHTML = `<div class="result-error">❌ ${data.error || 'Ошибка'}</div>`;
         }
