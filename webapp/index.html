@@ -130,10 +130,20 @@
             <div id="screen-admin" class="screen">
                 <div class="screen-title">👑 Админ-панель</div>
                 <div class="admin-grid">
+                    <button class="menu-card" onclick="navigate('admin-results')">
+                        <div class="menu-icon">📝</div>
+                        <div class="menu-label">Результаты</div>
+                        <div class="menu-desc">Ввод результатов</div>
+                    </button>
                     <button class="menu-card" onclick="navigate('admin-upload')">
                         <div class="menu-icon">📤</div>
                         <div class="menu-label">Загрузить Excel</div>
                         <div class="menu-desc">Обновить рейтинг</div>
+                    </button>
+                    <button class="menu-card" onclick="navigate('admin-nominations')">
+                        <div class="menu-icon">🏅</div>
+                        <div class="menu-label">Номинации</div>
+                        <div class="menu-desc">Добавить / удалить</div>
                     </button>
                     <button class="menu-card" onclick="navigate('admin-events')">
                         <div class="menu-icon">📅</div>
@@ -252,13 +262,6 @@
                         <label class="form-label">Номинация *</label>
                         <select id="pf-nomination" class="form-input">
                             <option value="">Выбери номинацию</option>
-                            <option value="до 6 лет">до 6 лет</option>
-                            <option value="1 год обучения">1 год обучения</option>
-                            <option value="до 3 лет опыта">до 3 лет опыта</option>
-                            <option value="7-9 лет">7-9 лет</option>
-                            <option value="10-13 лет">10-13 лет</option>
-                            <option value="Kids Pro">Kids Pro</option>
-                            <option value="Bgirl">Bgirl</option>
                         </select>
                     </div>
                     <button class="btn-primary" onclick="saveParticipant()">💾 Добавить</button>
@@ -304,6 +307,39 @@
                     </div>
                     <button class="btn-primary btn-danger" onclick="createNewSeason()">🔄 Начать новый сезон</button>
                     <div class="form-hint" style="margin-top:8px">Текущий сезон будет архивирован. Все данные сохранятся.</div>
+                </div>
+            </div>
+
+            <!-- Admin: Nominations -->
+            <div id="screen-admin-nominations" class="screen">
+                <div class="screen-title">🏅 Управление номинациями</div>
+                <div class="admin-form" style="margin-bottom:16px">
+                    <div class="form-group" style="display:flex;gap:8px;align-items:flex-end">
+                        <input type="text" id="new-nom-name" class="form-input" placeholder="Название номинации" style="flex:1">
+                        <button class="btn-primary" onclick="addNomination()" style="white-space:nowrap;padding:12px 16px">+ Добавить</button>
+                    </div>
+                    <div id="nom-form-result"></div>
+                </div>
+                <div id="admin-nominations-list" class="list-container"></div>
+            </div>
+
+            <!-- Admin: Results - Event Selection -->
+            <div id="screen-admin-results" class="screen">
+                <div class="screen-title">📝 Ввод результатов</div>
+                <div class="form-hint" style="margin-bottom:12px">Выбери мероприятие для ввода результатов</div>
+                <div id="admin-results-events" class="list-container"></div>
+            </div>
+
+            <!-- Admin: Results - Input Form -->
+            <div id="screen-admin-results-form" class="screen">
+                <div class="screen-title" id="results-form-title">📝 Результаты</div>
+                <div class="form-hint" style="margin-bottom:8px">
+                    Баллы: 1 место = 30, 2 место = 20, 3 место = 10, участие = 1
+                </div>
+                <div id="results-form-content"></div>
+                <div style="padding:12px 0">
+                    <button class="btn-primary" onclick="saveResults()" id="btn-save-results">💾 Сохранить результаты</button>
+                    <div id="results-form-result"></div>
                 </div>
             </div>
         </main>

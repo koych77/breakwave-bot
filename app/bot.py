@@ -10,9 +10,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy import select, delete
 from app.database import async_session, init_db
-from app.models import Subscriber, Event, Season
+from app.models import Subscriber, Event, Season, AdminUser, Result
 from app.excel_parser import import_excel_to_db
-from app.config import BOT_TOKEN, ADMIN_IDS, DATA_DIR, WEBAPP_URL
+from app.config import BOT_TOKEN, ADMIN_IDS, ADMIN_SECRET, DATA_DIR, WEBAPP_URL
 
 logger = logging.getLogger(__name__)
 
@@ -22,19 +22,30 @@ router = Router()
 dp.include_router(router)
 
 
-_dynamic_admins = set()
+async def is_admin(user_id: int) -> bool:
+    """Check if user is admin: env ADMIN_IDS or DB admin_users table."""
+    if ADMIN_IDS and user_id in ADMIN_IDS:
+        return True
+    async with async_session() as s:
+        result = await s.execute(
+            select(AdminUser).where(AdminUser.telegram_id == user_id)
+        )
+        return result.scalar_one_or_none() is not None
 
 
-def is_admin(user_id: int) -> bool:
-    if ADMIN_IDS:
-        return user_id in ADMIN_IDS
-    return user_id in _dynamic_admins
-
-
-def register_admin(user_id: int):
-    if not ADMIN_IDS and not _dynamic_admins:
-        _dynamic_admins.add(user_id)
-        logger.info(f"Auto-registered admin: {user_id}")
+async def register_admin(user_id: int, first_name: str = None, username: str = None):
+    """Add user to admin_users table."""
+    async with async_session() as s:
+        existing = await s.execute(
+            select(AdminUser).where(AdminUser.telegram_id == user_id)
+        )
+        if existing.scalar_one_or_none():
+            return False  # already admin
+        admin = AdminUser(telegram_id=user_id, first_name=first_name, username=username)
+        s.add(admin)
+        await s.commit()
+        logger.info(f"Registered admin: {user_id} ({first_name})")
+        return True
 
 
 # --- FSM States ---
@@ -80,9 +91,6 @@ async def cmd_start(message: types.Message):
             sub.username = message.from_user.username
         await s.commit()
 
-    # Auto-register first user as admin
-    register_admin(message.from_user.id)
-
     webapp_url = WEBAPP_URL or "https://web-production-7b91a.up.railway.app"
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -106,6 +114,33 @@ async def cmd_start(message: types.Message):
     )
 
 
+@router.message(Command("admin"))
+async def cmd_admin(message: types.Message):
+    """Handle /admin <secret> command to gain admin access."""
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("Используй: /admin <секретный код>")
+        return
+
+    secret = parts[1].strip()
+    if secret != ADMIN_SECRET:
+        await message.answer("❌ Неверный код.")
+        return
+
+    registered = await register_admin(
+        message.from_user.id,
+        message.from_user.first_name,
+        message.from_user.username,
+    )
+    if registered:
+        await message.answer(
+            "✅ Ты теперь администратор! Админ-панель доступна в Mini App.\n\n"
+            "Используй /help чтобы увидеть команды."
+        )
+    else:
+        await message.answer("👑 Ты уже администратор!")
+
+
 @router.message(Command("help"))
 async def cmd_help(message: types.Message):
     text = (
@@ -113,7 +148,7 @@ async def cmd_help(message: types.Message):
         "/start — Открыть приложение\n"
         "/help — Список команд\n"
     )
-    if is_admin(message.from_user.id):
+    if await is_admin(message.from_user.id):
         text += (
             "\n<b>👑 Админ-команды:</b>\n"
             "📎 Отправить .xlsx файл — обновить рейтинг\n"
@@ -131,7 +166,7 @@ async def cmd_help(message: types.Message):
 
 @router.message(F.document)
 async def handle_document(message: types.Message):
-    if not is_admin(message.from_user.id):
+    if not await is_admin(message.from_user.id):
         await message.answer("⛔ Нет доступа.")
         return
 
@@ -213,7 +248,7 @@ async def notify_skip(callback: CallbackQuery):
 
 @router.message(Command("event_add"))
 async def cmd_event_add(message: types.Message, state: FSMContext):
-    if not is_admin(message.from_user.id):
+    if not await is_admin(message.from_user.id):
         return
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -384,7 +419,7 @@ async def event_cancel(callback: CallbackQuery, state: FSMContext):
 
 @router.message(Command("event_list"))
 async def cmd_event_list(message: types.Message):
-    if not is_admin(message.from_user.id):
+    if not await is_admin(message.from_user.id):
         return
 
     async with async_session() as s:
@@ -410,7 +445,7 @@ async def cmd_event_list(message: types.Message):
 
 @router.message(Command("event_delete"))
 async def cmd_event_delete(message: types.Message):
-    if not is_admin(message.from_user.id):
+    if not await is_admin(message.from_user.id):
         return
 
     async with async_session() as s:
@@ -455,7 +490,7 @@ async def event_delete_confirm(callback: CallbackQuery):
 
 @router.message(Command("notify"))
 async def cmd_notify(message: types.Message, state: FSMContext):
-    if not is_admin(message.from_user.id):
+    if not await is_admin(message.from_user.id):
         return
     await message.answer("📢 Введи текст уведомления:")
     await state.set_state(NotifyForm.message)
@@ -473,7 +508,7 @@ async def notify_send(message: types.Message, state: FSMContext):
 
 @router.message(Command("stats"))
 async def cmd_stats(message: types.Message):
-    if not is_admin(message.from_user.id):
+    if not await is_admin(message.from_user.id):
         return
 
     async with async_session() as s:
@@ -493,7 +528,7 @@ async def cmd_stats(message: types.Message):
 
 @router.message(Command("season_new"))
 async def cmd_season_new(message: types.Message):
-    if not is_admin(message.from_user.id):
+    if not await is_admin(message.from_user.id):
         return
 
     kb = InlineKeyboardMarkup(inline_keyboard=[

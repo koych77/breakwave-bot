@@ -1059,6 +1059,72 @@ select.form-input option {
     justify-content: center;
 }
 
+/* Results input */
+.results-group {
+    margin-bottom: 16px;
+}
+
+.results-group-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--accent);
+    padding: 8px 0 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
+}
+
+.results-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.results-name {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.results-input-wrap {
+    flex-shrink: 0;
+    width: 72px;
+}
+
+.results-place-input {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: inherit;
+    text-align: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.2s;
+    -moz-appearance: textfield;
+}
+
+.results-place-input::-webkit-outer-spin-button,
+.results-place-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.results-place-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0, 191, 255, 0.15);
+}
+
 /* === Scrollbar === */
 main::-webkit-scrollbar {
     width: 0;

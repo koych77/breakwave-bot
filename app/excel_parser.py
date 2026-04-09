@@ -2,6 +2,7 @@ import openpyxl
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from app.models import Season, Participant, Event, Result
+from app.config import PLACE_POINTS, PARTICIPATION_POINTS
 
 SCHOOL_EVENTS = [
     {"name": "Winter", "emoji": "❄️", "multiplier": 1, "sort_order": 1},
@@ -23,6 +24,19 @@ SHEET_MAP = {
 def _cell(ws, row, col):
     v = ws.cell(row=row, column=col).value
     return v
+
+
+def calculate_points(main_place, multiplier=1):
+    """Calculate points based on place: 1st=30, 2nd=20, 3rd=10, participation=1."""
+    if main_place is None:
+        return 0
+    place = int(main_place) if main_place == int(main_place) else None
+    if place and place in PLACE_POINTS:
+        return PLACE_POINTS[place] * multiplier
+    # If they have a place but it's not top-3, they participated
+    if main_place is not None:
+        return PARTICIPATION_POINTS * multiplier
+    return 0
 
 
 def parse_excel(file_path: str) -> dict:
@@ -59,30 +73,27 @@ def parse_excel(file_path: str) -> dict:
         if not ws:
             continue
 
+        # Find the multiplier for this event
+        ev_info = next((e for e in SCHOOL_EVENTS if e["name"] == event_name), None)
+        multiplier = ev_info["multiplier"] if ev_info else 1
+
         results = []
         has_data = False
-
-        # Find the points column by header
-        points_col = 9
-        for col in range(1, ws.max_column + 1):
-            hdr = _cell(ws, 3, col)
-            if hdr and "Баллы" in str(hdr):
-                points_col = col
-                break
 
         for row in range(4, ws.max_row + 1):
             name = _cell(ws, row, 3)
             if not name:
                 continue
-            points_val = _cell(ws, row, points_col)
-            points = int(points_val) if points_val else 0
-            if points > 0:
-                has_data = True
 
             main_place = _cell(ws, row, 5)
             extra1 = _cell(ws, row, 6)
             extra2 = _cell(ws, row, 7)
             extra3 = _cell(ws, row, 8)
+
+            # Calculate points using the new scoring system
+            points = calculate_points(main_place, multiplier)
+            if points > 0:
+                has_data = True
 
             results.append({
                 "name": str(name).strip(),

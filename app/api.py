@@ -4,9 +4,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import select, func, desc, delete
 from contextlib import asynccontextmanager
 from app.database import async_session, init_db
-from app.models import Season, Participant, Event, Result, Subscriber
-from app.config import WEBAPP_DIR, DATA_DIR, BOT_TOKEN
-from app.excel_parser import import_excel_to_db
+from app.models import Season, Participant, Event, Result, Subscriber, AdminUser, Nomination
+from app.config import WEBAPP_DIR, DATA_DIR, BOT_TOKEN, PLACE_POINTS, PARTICIPATION_POINTS
+from app.excel_parser import import_excel_to_db, calculate_points
 import hmac
 import hashlib
 import json
@@ -20,6 +20,17 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     await init_db()
+    # Seed default nominations if table is empty
+    async with async_session() as s:
+        count = await s.execute(select(func.count(Nomination.id)))
+        if count.scalar() == 0:
+            defaults = [
+                "до 6 лет", "1 год обучения", "до 3 лет опыта",
+                "7-9 лет", "10-13 лет", "Kids Pro", "Bgirl"
+            ]
+            for i, name in enumerate(defaults):
+                s.add(Nomination(name=name, sort_order=i))
+            await s.commit()
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -145,6 +156,15 @@ async def get_nominations(season_id: int = None):
         )
         rows = result.all()
         return [{"name": r[0], "count": r[1]} for r in rows]
+
+
+@app.get("/api/nominations/all")
+async def get_all_nominations():
+    """Get all nominations from the nominations table."""
+    async with async_session() as s:
+        result = await s.execute(select(Nomination).order_by(Nomination.sort_order))
+        noms = result.scalars().all()
+        return [{"id": n.id, "name": n.name, "sort_order": n.sort_order} for n in noms]
 
 
 # --- Events ---
@@ -311,7 +331,6 @@ async def get_participant(participant_id: int):
                 break
 
         # Nomination rank
-        nom_participants = [rd for rd in ranking_data if True]
         nom_res = await s.execute(
             select(Participant).where(
                 Participant.season_id == p.season_id,
@@ -319,10 +338,10 @@ async def get_participant(participant_id: int):
             )
         )
         nom_ranking = []
-        for np in nom_res.scalars().all():
-            np_res = await s.execute(select(Result).where(Result.participant_id == np.id))
+        for np_ in nom_res.scalars().all():
+            np_res = await s.execute(select(Result).where(Result.participant_id == np_.id))
             np_total = sum(r.points for r in np_res.scalars().all())
-            nom_ranking.append({"id": np.id, "total": np_total})
+            nom_ranking.append({"id": np_.id, "total": np_total})
         nom_ranking.sort(key=lambda x: x["total"], reverse=True)
         nom_rank = 1
         for i, rd in enumerate(nom_ranking):
@@ -464,18 +483,22 @@ def verify_telegram_init_data(init_data: str) -> dict | None:
     return None
 
 
-def check_admin(init_data: str) -> dict | None:
-    """Check if the user from initData is an admin."""
+async def check_admin(init_data: str) -> dict | None:
+    """Check if the user from initData is an admin (env or DB)."""
     user = verify_telegram_init_data(init_data)
     if not user:
         return None
     from app.config import ADMIN_IDS
-    from app.bot import _dynamic_admins
     user_id = user.get("id")
     if ADMIN_IDS and user_id in ADMIN_IDS:
         return user
-    if user_id in _dynamic_admins:
-        return user
+    # Check DB
+    async with async_session() as s:
+        result = await s.execute(
+            select(AdminUser).where(AdminUser.telegram_id == user_id)
+        )
+        if result.scalar_one_or_none():
+            return user
     return None
 
 
@@ -485,7 +508,7 @@ def check_admin(init_data: str) -> dict | None:
 async def admin_check(request: Request):
     body = await request.json()
     init_data = body.get("initData", "")
-    user = check_admin(init_data)
+    user = await check_admin(init_data)
     if user:
         return {"is_admin": True, "user": user}
     return {"is_admin": False}
@@ -493,7 +516,7 @@ async def admin_check(request: Request):
 
 @app.post("/api/admin/upload-excel")
 async def admin_upload_excel(file: UploadFile = File(...), initData: str = Form("")):
-    user = check_admin(initData)
+    user = await check_admin(initData)
     if not user:
         return JSONResponse({"error": "unauthorized"}, 403)
 
@@ -517,7 +540,7 @@ async def admin_upload_excel(file: UploadFile = File(...), initData: str = Form(
 @app.post("/api/admin/events")
 async def admin_create_event(request: Request):
     body = await request.json()
-    user = check_admin(body.get("initData", ""))
+    user = await check_admin(body.get("initData", ""))
     if not user:
         return JSONResponse({"error": "unauthorized"}, 403)
 
@@ -548,7 +571,7 @@ async def admin_create_event(request: Request):
 @app.put("/api/admin/events/{event_id}")
 async def admin_update_event(event_id: int, request: Request):
     body = await request.json()
-    user = check_admin(body.get("initData", ""))
+    user = await check_admin(body.get("initData", ""))
     if not user:
         return JSONResponse({"error": "unauthorized"}, 403)
 
@@ -570,7 +593,7 @@ async def admin_update_event(event_id: int, request: Request):
 @app.delete("/api/admin/events/{event_id}")
 async def admin_delete_event(event_id: int, request: Request):
     body = await request.json()
-    user = check_admin(body.get("initData", ""))
+    user = await check_admin(body.get("initData", ""))
     if not user:
         return JSONResponse({"error": "unauthorized"}, 403)
 
@@ -584,7 +607,7 @@ async def admin_delete_event(event_id: int, request: Request):
 @app.post("/api/admin/participants")
 async def admin_create_participant(request: Request):
     body = await request.json()
-    user = check_admin(body.get("initData", ""))
+    user = await check_admin(body.get("initData", ""))
     if not user:
         return JSONResponse({"error": "unauthorized"}, 403)
 
@@ -612,7 +635,7 @@ async def admin_create_participant(request: Request):
 @app.delete("/api/admin/participants/{participant_id}")
 async def admin_delete_participant(participant_id: int, request: Request):
     body = await request.json()
-    user = check_admin(body.get("initData", ""))
+    user = await check_admin(body.get("initData", ""))
     if not user:
         return JSONResponse({"error": "unauthorized"}, 403)
 
@@ -626,7 +649,7 @@ async def admin_delete_participant(participant_id: int, request: Request):
 @app.post("/api/admin/notify")
 async def admin_notify(request: Request):
     body = await request.json()
-    user = check_admin(body.get("initData", ""))
+    user = await check_admin(body.get("initData", ""))
     if not user:
         return JSONResponse({"error": "unauthorized"}, 403)
 
@@ -669,7 +692,7 @@ async def admin_stats():
 @app.post("/api/admin/season-new")
 async def admin_new_season(request: Request):
     body = await request.json()
-    user = check_admin(body.get("initData", ""))
+    user = await check_admin(body.get("initData", ""))
     if not user:
         return JSONResponse({"error": "unauthorized"}, 403)
 
@@ -679,6 +702,136 @@ async def admin_new_season(request: Request):
         new_season = Season(name=name, is_current=True)
         s.add(new_season)
         await s.commit()
+    return {"success": True}
+
+
+# --- Admin: Nominations CRUD ---
+
+@app.post("/api/admin/nominations")
+async def admin_create_nomination(request: Request):
+    body = await request.json()
+    user = await check_admin(body.get("initData", ""))
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    name = body.get("name", "").strip()
+    if not name:
+        return JSONResponse({"error": "empty name"}, 400)
+
+    async with async_session() as s:
+        existing = await s.execute(select(Nomination).where(Nomination.name == name))
+        if existing.scalar_one_or_none():
+            return JSONResponse({"error": "nomination already exists"}, 400)
+
+        # Get max sort_order
+        max_order = await s.execute(select(func.max(Nomination.sort_order)))
+        order = (max_order.scalar() or 0) + 1
+
+        nom = Nomination(name=name, sort_order=order)
+        s.add(nom)
+        await s.commit()
+        return {"success": True, "id": nom.id}
+
+
+@app.delete("/api/admin/nominations/{nom_id}")
+async def admin_delete_nomination(nom_id: int, request: Request):
+    body = await request.json()
+    user = await check_admin(body.get("initData", ""))
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    async with async_session() as s:
+        await s.execute(delete(Nomination).where(Nomination.id == nom_id))
+        await s.commit()
+    return {"success": True}
+
+
+# --- Admin: Results input (in-app) ---
+
+@app.get("/api/admin/events/{event_id}/participants")
+async def admin_event_participants(event_id: int):
+    """Get all participants with their results for an event, grouped by nomination."""
+    async with async_session() as s:
+        event = await s.execute(select(Event).where(Event.id == event_id))
+        ev = event.scalar_one_or_none()
+        if not ev:
+            return JSONResponse({"error": "event not found"}, 404)
+
+        # Get all participants for the season
+        participants = await s.execute(
+            select(Participant).where(Participant.season_id == ev.season_id).order_by(Participant.nomination, Participant.name)
+        )
+        parts = participants.scalars().all()
+
+        items = []
+        for p in parts:
+            # Check if result exists
+            res = await s.execute(
+                select(Result).where(Result.participant_id == p.id, Result.event_id == event_id)
+            )
+            r = res.scalar_one_or_none()
+            items.append({
+                "participant_id": p.id,
+                "name": p.name,
+                "nomination": p.nomination,
+                "main_place": r.main_place if r else None,
+                "points": r.points if r else 0,
+            })
+
+        return {
+            "event_id": ev.id,
+            "event_name": ev.name,
+            "multiplier": ev.multiplier,
+            "participants": items,
+        }
+
+
+@app.post("/api/admin/events/{event_id}/results")
+async def admin_save_results(event_id: int, request: Request):
+    """Save results for an event. Body: {initData, results: [{participant_id, main_place}]}"""
+    body = await request.json()
+    user = await check_admin(body.get("initData", ""))
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    results_data = body.get("results", [])
+
+    async with async_session() as s:
+        event = await s.execute(select(Event).where(Event.id == event_id))
+        ev = event.scalar_one_or_none()
+        if not ev:
+            return JSONResponse({"error": "event not found"}, 404)
+
+        for rd in results_data:
+            pid = rd["participant_id"]
+            main_place = rd.get("main_place")
+            if main_place is not None and main_place != "":
+                main_place = float(main_place)
+            else:
+                main_place = None
+
+            points = calculate_points(main_place, ev.multiplier)
+
+            # Upsert result
+            existing = await s.execute(
+                select(Result).where(Result.participant_id == pid, Result.event_id == event_id)
+            )
+            r = existing.scalar_one_or_none()
+            if r:
+                r.main_place = main_place
+                r.points = points
+            else:
+                s.add(Result(
+                    participant_id=pid,
+                    event_id=event_id,
+                    main_place=main_place,
+                    points=points,
+                ))
+
+        # Mark event as completed if any results have points
+        ev.status = "completed"
+        await s.commit()
+
     return {"success": True}
 
 

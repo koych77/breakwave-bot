@@ -107,8 +107,12 @@ function showScreen(screen, params) {
         // Admin screens
         case 'admin-events': loadAdminEvents(); break;
         case 'admin-participants': loadAdminParticipants(); break;
+        case 'admin-participant-form': loadParticipantForm(); break;
         case 'admin-stats': loadAdminStats(); break;
         case 'admin-seasons': loadAdminSeasons(); break;
+        case 'admin-nominations': loadAdminNominations(); break;
+        case 'admin-results': loadAdminResults(); break;
+        case 'admin-results-form': loadAdminResultsForm(params); break;
     }
 
     // Show/hide admin FAB
@@ -877,6 +881,199 @@ async function createNewSeason() {
         }
     } catch (e) {
         alert('Ошибка');
+    }
+}
+
+// --- Admin: Nominations ---
+async function loadAdminNominations() {
+    const container = document.getElementById('admin-nominations-list');
+    container.innerHTML = loading();
+
+    const data = await api('/api/nominations/all');
+    if (!data || data.length === 0) {
+        container.innerHTML = emptyState('🏅', 'Нет номинаций');
+        return;
+    }
+
+    container.innerHTML = data.map(n => `
+        <div class="admin-event-item">
+            <div class="admin-event-info">
+                <div class="admin-event-name">🏅 ${esc(n.name)}</div>
+            </div>
+            <button class="btn-icon-danger" onclick="deleteNomination(${n.id}, '${esc(n.name)}')">🗑</button>
+        </div>
+    `).join('');
+}
+
+async function addNomination() {
+    const input = document.getElementById('new-nom-name');
+    const result = document.getElementById('nom-form-result');
+    const name = input.value.trim();
+    if (!name) { alert('Введи название'); return; }
+
+    result.innerHTML = '';
+    try {
+        const res = await fetch(`${API}/api/admin/nominations`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({initData, name}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            input.value = '';
+            result.innerHTML = '<div class="result-success">✅ Номинация добавлена!</div>';
+            loadAdminNominations();
+        } else {
+            result.innerHTML = `<div class="result-error">❌ ${data.error || 'Ошибка'}</div>`;
+        }
+    } catch (e) {
+        result.innerHTML = '<div class="result-error">❌ Ошибка сети</div>';
+    }
+}
+
+async function deleteNomination(id, name) {
+    if (!confirm(`Удалить номинацию "${name}"?`)) return;
+    try {
+        const res = await fetch(`${API}/api/admin/nominations/${id}`, {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({initData}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            loadAdminNominations();
+        }
+    } catch (e) {
+        alert('Ошибка удаления');
+    }
+}
+
+// --- Admin: Results Input ---
+let currentResultsEventId = null;
+
+async function loadAdminResults() {
+    const container = document.getElementById('admin-results-events');
+    container.innerHTML = loading();
+
+    const data = await api('/api/events?event_type=school');
+    if (!data || data.length === 0) {
+        container.innerHTML = emptyState('📅', 'Нет мероприятий');
+        return;
+    }
+
+    container.innerHTML = data.map(e => {
+        const statusIcon = e.status === 'completed' ? '✅' : '⏳';
+        return `
+            <div class="event-card" onclick="navigate('admin-results-form', ${e.id})" style="cursor:pointer">
+                <div class="event-card-header">
+                    <div class="event-card-name">${e.emoji} ${esc(e.name)}</div>
+                    <div class="event-card-status">${statusIcon} ${e.status === 'completed' ? 'Есть результаты' : 'Нет результатов'}</div>
+                </div>
+                ${e.multiplier > 1 ? `<div class="event-card-details"><div class="event-card-detail">⚡ Баллы x${e.multiplier}</div></div>` : ''}
+            </div>
+        `;
+    }).join('');
+}
+
+async function loadAdminResultsForm(eventId) {
+    currentResultsEventId = eventId;
+    const title = document.getElementById('results-form-title');
+    const container = document.getElementById('results-form-content');
+    container.innerHTML = loading();
+
+    const data = await api(`/api/admin/events/${eventId}/participants`);
+    if (!data || !data.participants) {
+        container.innerHTML = emptyState('❌', 'Ошибка загрузки');
+        return;
+    }
+
+    title.textContent = `📝 ${data.event_name}`;
+
+    // Group by nomination
+    const groups = {};
+    data.participants.forEach(p => {
+        if (!groups[p.nomination]) groups[p.nomination] = [];
+        groups[p.nomination].push(p);
+    });
+
+    let html = '';
+    for (const [nom, participants] of Object.entries(groups)) {
+        html += `<div class="results-group">`;
+        html += `<div class="results-group-title">🏅 ${esc(nom)}</div>`;
+        participants.forEach(p => {
+            const placeVal = p.main_place !== null ? p.main_place : '';
+            html += `
+                <div class="results-row">
+                    <div class="results-name">${esc(p.name)}</div>
+                    <div class="results-input-wrap">
+                        <input type="number" class="results-place-input"
+                               data-pid="${p.participant_id}"
+                               value="${placeVal}"
+                               placeholder="Место"
+                               min="1"
+                               inputmode="numeric">
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div>`;
+    }
+
+    container.innerHTML = html;
+    document.getElementById('results-form-result').innerHTML = '';
+}
+
+async function saveResults() {
+    const btn = document.getElementById('btn-save-results');
+    const resultEl = document.getElementById('results-form-result');
+    btn.disabled = true;
+    btn.textContent = '⏳ Сохранение...';
+    resultEl.innerHTML = '';
+
+    const inputs = document.querySelectorAll('.results-place-input');
+    const results = [];
+    inputs.forEach(input => {
+        const pid = parseInt(input.dataset.pid);
+        const val = input.value.trim();
+        results.push({
+            participant_id: pid,
+            main_place: val !== '' ? parseFloat(val) : null,
+        });
+    });
+
+    try {
+        const res = await fetch(`${API}/api/admin/events/${currentResultsEventId}/results`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({initData, results}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            resultEl.innerHTML = '<div class="result-success">✅ Результаты сохранены!</div>';
+        } else {
+            resultEl.innerHTML = `<div class="result-error">❌ ${data.error || 'Ошибка'}</div>`;
+        }
+    } catch (e) {
+        resultEl.innerHTML = '<div class="result-error">❌ Ошибка сети</div>';
+    }
+
+    btn.disabled = false;
+    btn.textContent = '💾 Сохранить результаты';
+}
+
+// --- Admin: Dynamic nomination dropdown for participant form ---
+async function loadParticipantForm() {
+    const select = document.getElementById('pf-nomination');
+    select.innerHTML = '<option value="">Выбери номинацию</option>';
+
+    const data = await api('/api/nominations/all');
+    if (data && data.length > 0) {
+        data.forEach(n => {
+            const opt = document.createElement('option');
+            opt.value = n.name;
+            opt.textContent = n.name;
+            select.appendChild(opt);
+        });
     }
 }
 
