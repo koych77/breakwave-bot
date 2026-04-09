@@ -1059,6 +1059,51 @@ select.form-input option {
     justify-content: center;
 }
 
+/* Onboarding banner */
+.onboard-banner {
+    background: var(--bg-card);
+    border: 1px solid var(--accent-dim);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 8px;
+}
+
+.onboard-banner-text {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    text-align: center;
+}
+
+.onboard-banner-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.onboard-btn {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.onboard-btn.accent {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+}
+
+.onboard-btn:active {
+    opacity: 0.8;
+}
+
 /* Results input */
 .results-group {
     margin-bottom: 16px;

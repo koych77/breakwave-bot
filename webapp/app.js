@@ -33,9 +33,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const hash = window.location.hash.replace('#', '');
     if (hash && hash !== '') {
         navigate(hash);
-    } else if (!userRole && initData) {
-        // First time — show onboarding
-        showScreen('onboarding');
     } else {
         loadHome();
     }
@@ -174,24 +171,37 @@ async function loadHome() {
     if (season && season.name) {
         document.getElementById('season-name').textContent = season.name.toUpperCase();
     }
-    // Show personal shortcut if linked to participant
+
     const personalEl = document.getElementById('home-personal');
-    if (personalEl) {
-        if (linkedParticipant) {
-            personalEl.innerHTML = `
-                <div class="rank-item gold" onclick="navigate('participant', ${linkedParticipant.id})" style="cursor:pointer;margin-bottom:12px">
-                    <div class="rank-badge r1">👤</div>
-                    <div class="rank-info">
-                        <div class="rank-name">${esc(linkedParticipant.name)}</div>
-                        <div class="rank-nomination">${esc(linkedParticipant.nomination)}</div>
-                    </div>
-                    <div style="color:var(--accent);font-size:13px;font-weight:600">Мой профиль →</div>
+    if (!personalEl) return;
+
+    if (linkedParticipant) {
+        // Show personal shortcut
+        personalEl.innerHTML = `
+            <div class="rank-item gold" onclick="navigate('participant', ${linkedParticipant.id})" style="cursor:pointer;margin-bottom:4px">
+                <div class="rank-badge r1">👤</div>
+                <div class="rank-info">
+                    <div class="rank-name">${esc(linkedParticipant.name)}</div>
+                    <div class="rank-nomination">${esc(linkedParticipant.nomination)}</div>
                 </div>
-            `;
-            personalEl.style.display = 'block';
-        } else {
-            personalEl.style.display = 'none';
-        }
+                <div style="color:var(--accent);font-size:13px;font-weight:600">Мой профиль →</div>
+            </div>
+        `;
+        personalEl.style.display = 'block';
+    } else if (!userRole && initData) {
+        // Show onboarding banner
+        personalEl.innerHTML = `
+            <div class="onboard-banner">
+                <div class="onboard-banner-text">Ты участник Break Wave?</div>
+                <div class="onboard-banner-buttons">
+                    <button class="onboard-btn accent" onclick="chooseRole('participant')">Да, я участник</button>
+                    <button class="onboard-btn" onclick="chooseRole('guest')">Нет, я гость</button>
+                </div>
+            </div>
+        `;
+        personalEl.style.display = 'block';
+    } else {
+        personalEl.style.display = 'none';
     }
 }
 
@@ -931,11 +941,9 @@ async function checkUserRole() {
 
 async function chooseRole(role) {
     if (role === 'participant') {
-        showScreen('onboarding-link');
-        loadOnboardParticipants();
+        navigate('onboarding-link');
     } else {
         await setUserRole('guest', null);
-        showScreen('home');
         loadHome();
     }
 }
