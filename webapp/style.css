@@ -1205,6 +1205,25 @@ select.form-input option {
     box-shadow: 0 0 0 2px rgba(0, 191, 255, 0.15);
 }
 
+/* Profile edit button */
+.btn-profile-edit {
+    width: 100%;
+    padding: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+    border: 1px solid var(--accent-dim);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    color: var(--accent);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-profile-edit:active {
+    background: var(--accent-dim);
+}
+
 /* === Scrollbar === */
 main::-webkit-scrollbar {
     width: 0;

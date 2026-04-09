@@ -119,6 +119,7 @@ function showScreen(screen, params) {
         case 'admin-nominations': loadAdminNominations(); break;
         case 'admin-results': loadAdminResults(); break;
         case 'admin-results-form': loadAdminResultsForm(params); break;
+        case 'my-profile': loadMyProfile(); break;
         case 'onboarding-link': loadOnboardParticipants(); break;
     }
 
@@ -188,6 +189,9 @@ async function loadHome() {
                     <div class="rank-nomination">${esc(linkedParticipant.nomination)}</div>
                 </div>
                 <div style="color:var(--accent);font-size:13px;font-weight:600">Мой профиль →</div>
+            </div>
+            <div style="margin-top:4px;margin-bottom:4px">
+                <button class="btn-profile-edit" onclick="navigate('my-profile')">✏️ Редактировать профиль</button>
             </div>
         `;
         personalEl.style.display = 'block';
@@ -998,6 +1002,20 @@ async function loadAdminStats() {
         const res = await fetch(`${API}/api/admin/stats`);
         const data = await res.json();
 
+        const usersHtml = (data.users || []).map(u => {
+            const roleLabel = u.role === 'participant' ? '🟢 Участник' : '⚪ Гость';
+            const linked = u.linked_name ? ` → ${esc(u.linked_name)}` : '';
+            const username = u.username ? `@${esc(u.username)}` : '';
+            return `
+                <div class="admin-event-item">
+                    <div class="admin-event-info">
+                        <div class="admin-event-name">${esc(u.first_name || 'Без имени')} ${username}</div>
+                        <div class="admin-event-meta">${roleLabel}${linked}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
         container.innerHTML = `
             <div class="stats-grid">
                 <div class="stat-card">
@@ -1017,6 +1035,8 @@ async function loadAdminStats() {
                     <div class="stat-card-label">Всего подписок</div>
                 </div>
             </div>
+            <div class="screen-title" style="font-size:16px;margin-top:16px">👥 Зарегистрированные пользователи</div>
+            <div class="list-container">${usersHtml || emptyState('👥', 'Пока никто не зарегистрировался')}</div>
         `;
     } catch (e) {
         container.innerHTML = emptyState('❌', 'Ошибка загрузки');
@@ -1142,6 +1162,61 @@ async function linkParticipant(id, name, nomination) {
     linkedParticipant = {id, name, nomination};
     showScreen('home');
     loadHome();
+}
+
+// --- My Profile (self-edit) ---
+async function loadMyProfile() {
+    const container = document.getElementById('my-profile-content');
+    if (!container) return;
+    if (!linkedParticipant) {
+        container.innerHTML = emptyState('👤', 'Сначала привяжи свой профиль');
+        return;
+    }
+
+    // Fetch fresh data
+    const p = await api(`/api/participants/${linkedParticipant.id}`);
+    if (!p) {
+        container.innerHTML = emptyState('❌', 'Не удалось загрузить');
+        return;
+    }
+
+    document.getElementById('mp-name').value = p.name || '';
+    document.getElementById('mp-nickname').value = p.nickname || '';
+    document.getElementById('mp-phone').value = p.phone || '';
+    document.getElementById('mp-age').value = p.age || '';
+    document.getElementById('mp-nomination').textContent = p.nomination || '—';
+    document.getElementById('my-profile-result').innerHTML = '';
+}
+
+async function saveMyProfile() {
+    const name = document.getElementById('mp-name').value.trim();
+    if (!name) { alert('Введи имя'); return; }
+
+    const result = document.getElementById('my-profile-result');
+    result.innerHTML = '';
+
+    try {
+        const res = await fetch(`${API}/api/user/profile`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                initData,
+                name,
+                nickname: document.getElementById('mp-nickname').value.trim() || null,
+                phone: document.getElementById('mp-phone').value.trim() || null,
+                age: document.getElementById('mp-age').value.trim() || null,
+            }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            result.innerHTML = '<div class="result-success">✅ Профиль обновлён!</div>';
+            linkedParticipant = data.participant;
+        } else {
+            result.innerHTML = `<div class="result-error">❌ ${data.error || 'Ошибка'}</div>`;
+        }
+    } catch (e) {
+        result.innerHTML = '<div class="result-error">❌ Ошибка сети</div>';
+    }
 }
 
 async function setUserRole(role, participantId) {

@@ -716,11 +716,33 @@ async def admin_stats():
             ec = await s.execute(select(func.count(Event.id)).where(Event.season_id == season.id))
             events_count = ec.scalar() or 0
 
+        # Get registered users (subscribers with roles)
+        registered = await s.execute(
+            select(Subscriber).where(Subscriber.is_active == True).order_by(Subscriber.subscribed_at.desc())
+        )
+        users_list = []
+        for sub in registered.scalars().all():
+            user_data = {
+                "telegram_id": sub.telegram_id,
+                "first_name": sub.first_name,
+                "username": sub.username,
+                "role": sub.role or "guest",
+                "linked_participant_id": sub.linked_participant_id,
+                "linked_name": None,
+            }
+            if sub.linked_participant_id:
+                lp = await s.execute(select(Participant).where(Participant.id == sub.linked_participant_id))
+                linked = lp.scalar_one_or_none()
+                if linked:
+                    user_data["linked_name"] = linked.name
+            users_list.append(user_data)
+
         return {
             "subscribers_total": subs_total.scalar() or 0,
             "subscribers_active": subs_active.scalar() or 0,
             "participants": parts_count,
             "events": events_count,
+            "users": users_list,
         }
 
 
@@ -915,7 +937,7 @@ async def user_check(request: Request):
             return {
                 "role": "participant",
                 "first_name": user.get("first_name"),
-                "participant": {"id": auto_participant.id, "name": auto_participant.name, "nomination": auto_participant.nomination},
+                "participant": {"id": auto_participant.id, "name": auto_participant.name, "nickname": auto_participant.nickname, "nomination": auto_participant.nomination, "phone": auto_participant.phone, "age": auto_participant.age},
             }
 
         if not sub or not sub.role or sub.role == "":
@@ -927,8 +949,52 @@ async def user_check(request: Request):
             )
             part = p.scalar_one_or_none()
             if part:
-                data["participant"] = {"id": part.id, "name": part.name, "nomination": part.nomination}
+                data["participant"] = {"id": part.id, "name": part.name, "nickname": part.nickname, "nomination": part.nomination, "phone": part.phone, "age": part.age}
         return data
+
+
+@app.post("/api/user/profile")
+async def user_update_profile(request: Request):
+    """Allow linked participant to update their own profile."""
+    body = await request.json()
+    init_data_str = body.get("initData", "")
+    user = verify_telegram_init_data(init_data_str)
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    telegram_id = user.get("id")
+    async with async_session() as s:
+        # Find subscriber
+        result = await s.execute(
+            select(Subscriber).where(Subscriber.telegram_id == telegram_id)
+        )
+        sub = result.scalar_one_or_none()
+        if not sub or not sub.linked_participant_id:
+            return JSONResponse({"error": "no linked participant"}, 400)
+
+        # Get participant
+        p_result = await s.execute(
+            select(Participant).where(Participant.id == sub.linked_participant_id)
+        )
+        p = p_result.scalar_one_or_none()
+        if not p:
+            return JSONResponse({"error": "participant not found"}, 404)
+
+        # Update allowed fields
+        if "name" in body and body["name"]:
+            p.name = body["name"].strip()
+        if "nickname" in body:
+            p.nickname = body["nickname"].strip() if body["nickname"] else None
+        if "phone" in body:
+            p.phone = body["phone"].strip() if body["phone"] else None
+        if "age" in body:
+            p.age = int(body["age"]) if body["age"] else None
+
+        await s.commit()
+        return {
+            "success": True,
+            "participant": {"id": p.id, "name": p.name, "nickname": p.nickname, "nomination": p.nomination, "phone": p.phone, "age": p.age},
+        }
 
 
 @app.post("/api/user/set-role")

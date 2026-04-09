@@ -32,6 +32,37 @@
                 <div id="onboard-results" class="list-container"></div>
             </div>
 
+            <!-- My Profile (self-edit) -->
+            <div id="screen-my-profile" class="screen">
+                <div class="screen-title">👤 Мой профиль</div>
+                <div id="my-profile-content">
+                    <div class="admin-form">
+                        <div class="form-group">
+                            <label class="form-label">Номинация</label>
+                            <div id="mp-nomination" class="form-input" style="background:var(--bg-secondary);color:var(--text-secondary)">—</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Имя и фамилия</label>
+                            <input type="text" id="mp-name" class="form-input" placeholder="Иванов Иван">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Никнейм</label>
+                            <input type="text" id="mp-nickname" class="form-input" placeholder="Bboy Flash">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Телефон</label>
+                            <input type="tel" id="mp-phone" class="form-input" placeholder="+7 999 123-45-67">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Возраст</label>
+                            <input type="number" id="mp-age" class="form-input" placeholder="12" min="3" max="99">
+                        </div>
+                        <button class="btn-primary" onclick="saveMyProfile()">💾 Сохранить</button>
+                        <div id="my-profile-result"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Home Screen -->
             <div id="screen-home" class="screen active">
                 <div class="home-hero">
