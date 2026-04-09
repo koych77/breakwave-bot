@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import text, inspect
+from sqlalchemy import text
 from app.config import DATABASE_URL
 
 engine = create_async_engine(DATABASE_URL, echo=False)
@@ -13,11 +13,88 @@ class Base(DeclarativeBase):
 
 async def init_db():
     async with engine.begin() as conn:
-        # Create all tables with IF NOT EXISTS (checkfirst=True)
-        def _create_all(sync_conn):
-            Base.metadata.create_all(sync_conn, checkfirst=True)
-
-        await conn.run_sync(_create_all)
+        # Create tables via raw SQL with IF NOT EXISTS
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS seasons (
+                id INTEGER PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                is_current BOOLEAN DEFAULT 1,
+                created_at DATETIME
+            )
+        """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS participants (
+                id INTEGER PRIMARY KEY,
+                name VARCHAR(200) NOT NULL,
+                nickname VARCHAR(100),
+                nomination VARCHAR(100) NOT NULL,
+                season_id INTEGER NOT NULL REFERENCES seasons(id),
+                telegram_id BIGINT,
+                phone VARCHAR(50),
+                age INTEGER
+            )
+        """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS events (
+                id INTEGER PRIMARY KEY,
+                name VARCHAR(200) NOT NULL,
+                emoji VARCHAR(10) DEFAULT '🏆',
+                event_type VARCHAR(20) NOT NULL,
+                season_id INTEGER REFERENCES seasons(id),
+                date VARCHAR(50),
+                time VARCHAR(20),
+                location VARCHAR(300),
+                description TEXT,
+                contact VARCHAR(200),
+                fee VARCHAR(100),
+                photo_path VARCHAR(500),
+                status VARCHAR(20) DEFAULT 'upcoming',
+                multiplier INTEGER DEFAULT 1,
+                sort_order INTEGER DEFAULT 0,
+                created_at DATETIME
+            )
+        """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS results (
+                id INTEGER PRIMARY KEY,
+                participant_id INTEGER NOT NULL REFERENCES participants(id),
+                event_id INTEGER NOT NULL REFERENCES events(id),
+                main_place FLOAT,
+                extra_nom1 FLOAT,
+                extra_nom2 FLOAT,
+                extra_nom3 FLOAT,
+                points INTEGER DEFAULT 0
+            )
+        """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS subscribers (
+                id INTEGER PRIMARY KEY,
+                telegram_id BIGINT UNIQUE NOT NULL,
+                first_name VARCHAR(200),
+                username VARCHAR(200),
+                role VARCHAR(20) DEFAULT 'guest',
+                linked_participant_id INTEGER,
+                subscribed_at DATETIME,
+                is_active BOOLEAN DEFAULT 1
+            )
+        """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS admin_users (
+                id INTEGER PRIMARY KEY,
+                telegram_id BIGINT UNIQUE NOT NULL,
+                first_name VARCHAR(200),
+                username VARCHAR(200),
+                created_at DATETIME
+            )
+        """))
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS nominations (
+                id INTEGER PRIMARY KEY,
+                name VARCHAR(100) UNIQUE NOT NULL,
+                sort_order INTEGER DEFAULT 0,
+                created_at DATETIME
+            )
+        """))
 
         # Add new columns to existing tables if missing
         await _add_column_if_not_exists(conn, "participants", "telegram_id", "BIGINT")
