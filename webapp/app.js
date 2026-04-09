@@ -501,25 +501,28 @@ async function loadParticipant(id) {
         const pts = e.points > 0 ? e.points : '—';
         const ptsClass = e.points > 0 ? 'has-points' : 'no-points';
 
-        // Build detailed breakdown of places
+        // Build detailed breakdown of places with points
+        const placePoints = {1: 30, 2: 20, 3: 10};
+        function placeLabel(pl, mult) {
+            if (pl === 0) return `участие (+${1 * mult}б)`;
+            const pts = placePoints[pl] || 1;
+            return `${pl} место (+${pts * mult}б)`;
+        }
+        const mult = e.multiplier || 1;
         let details = [];
         if (e.main_place !== null && e.main_place !== undefined) {
-            const pl = Math.round(e.main_place);
-            details.push(`Осн: ${pl === 0 ? 'участие' : pl + ' место'}`);
+            details.push(`Осн: ${placeLabel(Math.round(e.main_place), mult)}`);
         }
         if (e.extra_nom1 !== null && e.extra_nom1 !== undefined) {
-            const pl = Math.round(e.extra_nom1);
-            details.push(`Доп1: ${pl === 0 ? 'участие' : pl + ' место'}`);
+            details.push(`Доп1: ${placeLabel(Math.round(e.extra_nom1), mult)}`);
         }
         if (e.extra_nom2 !== null && e.extra_nom2 !== undefined) {
-            const pl = Math.round(e.extra_nom2);
-            details.push(`Доп2: ${pl === 0 ? 'участие' : pl + ' место'}`);
+            details.push(`Доп2: ${placeLabel(Math.round(e.extra_nom2), mult)}`);
         }
         if (e.extra_nom3 !== null && e.extra_nom3 !== undefined) {
-            const pl = Math.round(e.extra_nom3);
-            details.push(`Доп3: ${pl === 0 ? 'участие' : pl + ' место'}`);
+            details.push(`Доп3: ${placeLabel(Math.round(e.extra_nom3), mult)}`);
         }
-        const detailStr = details.length > 0 ? details.join(' · ') : '';
+        const detailStr = details.length > 0 ? details.join('<br>') : '';
 
         return `
             <div class="p-event-row">
