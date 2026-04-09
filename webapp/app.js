@@ -484,6 +484,45 @@ function onSearch(query) {
 }
 
 // --- Participant ---
+function buildPointsBreakdown(p) {
+    const placePoints = {1: 30, 2: 20, 3: 10};
+    const rows = p.events.filter(e => e.points > 0);
+    if (rows.length === 0) return '';
+
+    function placeTxt(pl, mult) {
+        if (pl === null || pl === undefined) return null;
+        pl = Math.round(pl);
+        const pts = placePoints[pl] || 1;
+        const label = pl === 0 ? 'участие' : `${pl} место`;
+        return `${label} <span style="color:var(--accent)">(+${pts * mult})</span>`;
+    }
+
+    let html = '<div class="p-breakdown">';
+    html += '<div class="p-breakdown-title">Начисления баллов</div>';
+    for (const e of rows) {
+        const mult = e.multiplier || 1;
+        let lines = [];
+        const m = placeTxt(e.main_place, mult);
+        if (m) lines.push(`<span class="p-bd-label">Осн:</span> ${m}`);
+        const e1 = placeTxt(e.extra_nom1, mult);
+        if (e1) lines.push(`<span class="p-bd-label">Доп1:</span> ${e1}`);
+        const e2 = placeTxt(e.extra_nom2, mult);
+        if (e2) lines.push(`<span class="p-bd-label">Доп2:</span> ${e2}`);
+        const e3 = placeTxt(e.extra_nom3, mult);
+        if (e3) lines.push(`<span class="p-bd-label">Доп3:</span> ${e3}`);
+        if (lines.length === 0) continue;
+
+        html += `
+            <div class="p-bd-event">
+                <div class="p-bd-event-name">${e.emoji} ${esc(e.event_name)}${mult > 1 ? ' (x' + mult + ')' : ''} — <b>${e.points} б.</b></div>
+                <div class="p-bd-details">${lines.join('<br>')}</div>
+            </div>
+        `;
+    }
+    html += '</div>';
+    return html;
+}
+
 async function loadParticipant(id) {
     const container = document.getElementById('participant-card');
     container.innerHTML = loading();
@@ -557,6 +596,7 @@ async function loadParticipant(id) {
                         <div class="p-stat-label">В номинации</div>
                     </div>
                 </div>
+                ${buildPointsBreakdown(p)}
             </div>
             <div class="p-card-events">
                 ${eventsHtml}
