@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (tg) {
         tg.ready();
         tg.expand();
+        tg.requestFullscreen?.();
         tg.enableClosingConfirmation?.();
         tg.headerColor = '#0F2035';
         tg.backgroundColor = '#0A1628';
