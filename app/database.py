@@ -13,23 +13,11 @@ class Base(DeclarativeBase):
 
 async def init_db():
     async with engine.begin() as conn:
-        # Get existing table names
-        def _get_tables(sync_conn):
-            insp = inspect(sync_conn)
-            return insp.get_table_names()
+        # Create all tables with IF NOT EXISTS (checkfirst=True)
+        def _create_all(sync_conn):
+            Base.metadata.create_all(sync_conn, checkfirst=True)
 
-        existing = await conn.run_sync(_get_tables)
-
-        # Create only tables that don't exist yet
-        def _create_missing(sync_conn):
-            tables_to_create = []
-            for table in Base.metadata.sorted_tables:
-                if table.name not in existing:
-                    tables_to_create.append(table)
-            if tables_to_create:
-                Base.metadata.create_all(sync_conn, tables=tables_to_create)
-
-        await conn.run_sync(_create_missing)
+        await conn.run_sync(_create_all)
 
         # Add new columns to existing tables if missing
         await _add_column_if_not_exists(conn, "participants", "telegram_id", "BIGINT")
