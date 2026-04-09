@@ -583,6 +583,14 @@ main {
     font-weight: 800;
 }
 
+.p-card-nickname {
+    font-size: 16px;
+    color: var(--accent);
+    margin-top: 4px;
+    font-weight: 700;
+    font-style: italic;
+}
+
 .p-card-nomination {
     font-size: 14px;
     color: var(--accent-light);
@@ -646,6 +654,12 @@ main {
 .p-event-name {
     font-size: 14px;
     font-weight: 700;
+}
+
+.p-event-detail-places {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
 }
 
 .p-event-multi {

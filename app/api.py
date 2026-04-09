@@ -272,7 +272,7 @@ async def get_participants(season_id: int = None):
         result = await s.execute(
             select(Participant).where(Participant.season_id == season_id).order_by(Participant.name)
         )
-        return [{"id": p.id, "name": p.name, "nomination": p.nomination, "phone": p.phone, "age": p.age, "telegram_id": p.telegram_id} for p in result.scalars().all()]
+        return [{"id": p.id, "name": p.name, "nickname": p.nickname, "nomination": p.nomination, "phone": p.phone, "age": p.age, "telegram_id": p.telegram_id} for p in result.scalars().all()]
 
 
 @app.get("/api/participants/search")
@@ -291,7 +291,7 @@ async def search_participants(q: str = "", season_id: int = None):
                 Participant.name.ilike(f"%{q}%")
             ).order_by(Participant.name)
         )
-        return [{"id": p.id, "name": p.name, "nomination": p.nomination, "phone": p.phone, "age": p.age, "telegram_id": p.telegram_id} for p in result.scalars().all()]
+        return [{"id": p.id, "name": p.name, "nickname": p.nickname, "nomination": p.nomination, "phone": p.phone, "age": p.age, "telegram_id": p.telegram_id} for p in result.scalars().all()]
 
 
 @app.get("/api/participants/{participant_id}")
@@ -353,7 +353,10 @@ async def get_participant(participant_id: int):
         return {
             "id": p.id,
             "name": p.name,
+            "nickname": p.nickname,
             "nomination": p.nomination,
+            "phone": p.phone,
+            "age": p.age,
             "total_points": total,
             "overall_rank": overall_rank,
             "nomination_rank": nom_rank,
@@ -365,6 +368,9 @@ async def get_participant(participant_id: int):
                 "status": e.status,
                 "points": r.points,
                 "main_place": r.main_place,
+                "extra_nom1": r.extra_nom1,
+                "extra_nom2": r.extra_nom2,
+                "extra_nom3": r.extra_nom3,
             } for r, e in rows],
         }
 
@@ -619,6 +625,7 @@ async def admin_create_participant(request: Request):
 
         p = Participant(
             name=body["name"],
+            nickname=body.get("nickname") or None,
             nomination=body["nomination"],
             season_id=season.id,
             phone=body.get("phone") or None,
@@ -651,9 +658,9 @@ async def admin_update_participant(participant_id: int, request: Request):
         if not p:
             return JSONResponse({"error": "not found"}, 404)
 
-        for field in ["name", "nomination", "phone"]:
-            if field in body and body[field] is not None:
-                setattr(p, field, body[field])
+        for field in ["name", "nickname", "nomination", "phone"]:
+            if field in body:
+                setattr(p, field, body[field] or None)
         if "age" in body:
             p.age = int(body["age"]) if body["age"] else None
         await s.commit()

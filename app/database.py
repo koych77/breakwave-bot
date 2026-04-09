@@ -21,6 +21,7 @@ async def init_db():
 
         # Add new columns to existing tables if missing
         await _add_column_if_not_exists(conn, "participants", "telegram_id", "BIGINT")
+        await _add_column_if_not_exists(conn, "participants", "nickname", "VARCHAR(100)")
         await _add_column_if_not_exists(conn, "participants", "phone", "VARCHAR(50)")
         await _add_column_if_not_exists(conn, "participants", "age", "INTEGER")
         await _add_column_if_not_exists(conn, "subscribers", "role", "VARCHAR(20) DEFAULT 'guest'")

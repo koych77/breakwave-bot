@@ -496,11 +496,33 @@ async function loadParticipant(id) {
     let eventsHtml = p.events.map(e => {
         const pts = e.points > 0 ? e.points : '—';
         const ptsClass = e.points > 0 ? 'has-points' : 'no-points';
+
+        // Build detailed breakdown of places
+        let details = [];
+        if (e.main_place !== null && e.main_place !== undefined) {
+            const pl = Math.round(e.main_place);
+            details.push(`Осн: ${pl === 0 ? 'участие' : pl + ' место'}`);
+        }
+        if (e.extra_nom1 !== null && e.extra_nom1 !== undefined) {
+            const pl = Math.round(e.extra_nom1);
+            details.push(`Доп1: ${pl === 0 ? 'участие' : pl + ' место'}`);
+        }
+        if (e.extra_nom2 !== null && e.extra_nom2 !== undefined) {
+            const pl = Math.round(e.extra_nom2);
+            details.push(`Доп2: ${pl === 0 ? 'участие' : pl + ' место'}`);
+        }
+        if (e.extra_nom3 !== null && e.extra_nom3 !== undefined) {
+            const pl = Math.round(e.extra_nom3);
+            details.push(`Доп3: ${pl === 0 ? 'участие' : pl + ' место'}`);
+        }
+        const detailStr = details.length > 0 ? details.join(' · ') : '';
+
         return `
             <div class="p-event-row">
                 <div class="p-event-emoji">${e.emoji}</div>
                 <div class="p-event-info">
                     <div class="p-event-name">${esc(e.event_name)}</div>
+                    ${detailStr ? `<div class="p-event-detail-places">${detailStr}</div>` : ''}
                     ${e.multiplier > 1 ? `<div class="p-event-multi">x${e.multiplier} баллов</div>` : ''}
                 </div>
                 <div class="p-event-points ${ptsClass}">${pts}</div>
@@ -512,6 +534,7 @@ async function loadParticipant(id) {
         <div class="p-card">
             <div class="p-card-header">
                 <div class="p-card-name">${esc(p.name)}</div>
+                ${p.nickname ? `<div class="p-card-nickname">${esc(p.nickname)}</div>` : ''}
                 <div class="p-card-nomination">${esc(p.nomination)}</div>
                 <div class="p-card-stats">
                     <div class="p-stat">
@@ -826,13 +849,14 @@ async function loadAdminParticipants() {
 
     container.innerHTML = data.map(p => {
         const meta = [esc(p.nomination)];
+        if (p.nickname) meta.push(esc(p.nickname));
         if (p.age) meta.push(`${p.age} лет`);
         if (p.phone) meta.push(esc(p.phone));
         if (p.telegram_id) meta.push('TG ✓');
         return `
             <div class="admin-event-item">
                 <div class="admin-event-info" onclick="editParticipant(${p.id})" style="cursor:pointer">
-                    <div class="admin-event-name">${esc(p.name)}</div>
+                    <div class="admin-event-name">${esc(p.name)}${p.nickname ? ` (${esc(p.nickname)})` : ''}</div>
                     <div class="admin-event-meta">${meta.join(' · ')}</div>
                 </div>
                 <button class="btn-icon-edit" onclick="editParticipant(${p.id})">✏️</button>
@@ -864,7 +888,7 @@ function openNewParticipantForm() {
     editingParticipantId = null;
     document.getElementById('participant-form-title').textContent = '👥 Новый участник';
     document.getElementById('pf-btn-save').textContent = '💾 Добавить';
-    ['pf-name', 'pf-phone'].forEach(id => { document.getElementById(id).value = ''; });
+    ['pf-name', 'pf-nickname', 'pf-phone'].forEach(id => { document.getElementById(id).value = ''; });
     document.getElementById('pf-age').value = '';
     document.getElementById('pf-nomination').value = '';
     document.getElementById('participant-form-result').innerHTML = '';
@@ -873,7 +897,6 @@ function openNewParticipantForm() {
 
 async function editParticipant(id) {
     editingParticipantId = id;
-    // Fetch participant data
     const data = await api('/api/participants');
     const p = data ? data.find(x => x.id === id) : null;
     if (!p) { alert('Не найдено'); return; }
@@ -881,11 +904,11 @@ async function editParticipant(id) {
     document.getElementById('participant-form-title').textContent = '✏️ Редактировать участника';
     document.getElementById('pf-btn-save').textContent = '💾 Сохранить изменения';
     document.getElementById('pf-name').value = p.name || '';
+    document.getElementById('pf-nickname').value = p.nickname || '';
     document.getElementById('pf-phone').value = p.phone || '';
     document.getElementById('pf-age').value = p.age || '';
     document.getElementById('participant-form-result').innerHTML = '';
 
-    // Load nominations first, then set value
     await loadParticipantForm();
     document.getElementById('pf-nomination').value = p.nomination || '';
 
@@ -894,6 +917,7 @@ async function editParticipant(id) {
 
 async function saveParticipant() {
     const name = document.getElementById('pf-name').value.trim();
+    const nickname = document.getElementById('pf-nickname').value.trim();
     const nomination = document.getElementById('pf-nomination').value;
     const phone = document.getElementById('pf-phone').value.trim();
     const age = document.getElementById('pf-age').value.trim();
@@ -902,7 +926,7 @@ async function saveParticipant() {
     if (!name || !nomination) { alert('Заполни имя и номинацию'); return; }
     result.innerHTML = '';
 
-    const body = {initData, name, nomination, phone: phone || null, age: age || null};
+    const body = {initData, name, nickname: nickname || null, nomination, phone: phone || null, age: age || null};
 
     try {
         let res;
@@ -923,7 +947,7 @@ async function saveParticipant() {
         if (data.success) {
             result.innerHTML = `<div class="result-success">✅ ${editingParticipantId ? 'Сохранено!' : 'Участник добавлен!'}</div>`;
             if (!editingParticipantId) {
-                ['pf-name', 'pf-phone'].forEach(id => { document.getElementById(id).value = ''; });
+                ['pf-name', 'pf-nickname', 'pf-phone'].forEach(id => { document.getElementById(id).value = ''; });
                 document.getElementById('pf-age').value = '';
                 document.getElementById('pf-nomination').value = '';
             }

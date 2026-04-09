@@ -21,6 +21,7 @@ class Participant(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(200), nullable=False)
+    nickname = Column(String(100), nullable=True)
     nomination = Column(String(100), nullable=False)
     season_id = Column(Integer, ForeignKey("seasons.id"), nullable=False)
     telegram_id = Column(BigInteger, nullable=True)
