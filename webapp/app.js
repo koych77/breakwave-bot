@@ -210,6 +210,38 @@ async function loadHome() {
     } else {
         personalEl.style.display = 'none';
     }
+
+    // Load news feed
+    loadNewsFeed();
+}
+
+async function loadNewsFeed() {
+    const feedEl = document.getElementById('home-feed');
+    if (!feedEl) return;
+
+    const feed = await api('/api/feed');
+    if (!feed || feed.length === 0) {
+        feedEl.style.display = 'none';
+        return;
+    }
+
+    feedEl.innerHTML = `
+        <div class="feed-title">📰 Что нового</div>
+        ${feed.map(item => {
+            const onclick = item.event_id ? `onclick="navigate('event-detail', ${item.event_id})"` : '';
+            const cursor = item.event_id ? 'cursor:pointer' : '';
+            return `
+                <div class="feed-item" ${onclick} style="${cursor}">
+                    <div class="feed-icon">${item.icon}</div>
+                    <div class="feed-info">
+                        <div class="feed-item-title">${esc(item.title)}</div>
+                        <div class="feed-item-sub">${esc(item.subtitle)}</div>
+                    </div>
+                </div>
+            `;
+        }).join('')}
+    `;
+    feedEl.style.display = 'block';
 }
 
 // --- Ranking ---
@@ -380,8 +412,71 @@ async function loadEventDetail(eventId) {
         html += `<button class="btn-primary" onclick="navigate('event-results', {id: ${e.id}, name: '${esc(e.emoji)} ${esc(e.name)}'})">🏆 Смотреть результаты</button>`;
     }
 
+    // Registration section for upcoming events
+    if (e.status === 'upcoming') {
+        html += `<div id="event-reg-section" data-event-id="${e.id}"></div>`;
+    }
+
     html += '</div></div>';
     container.innerHTML = html;
+
+    // Load registration state
+    if (e.status === 'upcoming') {
+        loadEventRegistration(e.id);
+    }
+}
+
+async function loadEventRegistration(eventId) {
+    const section = document.getElementById('event-reg-section');
+    if (!section) return;
+
+    // Get registration count
+    const regs = await api(`/api/events/${eventId}/registrations`);
+    const count = regs ? regs.count : 0;
+    const regList = regs ? regs.registrations : [];
+
+    // Check if user is registered
+    let isRegistered = false;
+    if (initData && tg?.initDataUnsafe?.user?.id) {
+        const myReg = await api(`/api/events/${eventId}/my-registration?telegram_id=${tg.initDataUnsafe.user.id}`);
+        isRegistered = myReg && myReg.registered;
+    }
+
+    let listHtml = '';
+    if (regList.length > 0) {
+        listHtml = `<div class="reg-list">${regList.map(r =>
+            `<span class="reg-chip">${esc(r.name)}</span>`
+        ).join('')}</div>`;
+    }
+
+    section.innerHTML = `
+        <div class="reg-section">
+            <div class="reg-header">
+                <span class="reg-count">👥 ${count} ${count === 1 ? 'участник' : 'участников'} идут</span>
+            </div>
+            ${listHtml}
+            ${initData ? `
+                <button class="btn-primary ${isRegistered ? 'btn-registered' : ''}" id="btn-reg-${eventId}"
+                    onclick="toggleRegistration(${eventId}, ${isRegistered})">
+                    ${isRegistered ? '✅ Ты идёшь! (отменить)' : '✋ Я приду!'}
+                </button>
+            ` : ''}
+        </div>
+    `;
+}
+
+async function toggleRegistration(eventId, currentlyRegistered) {
+    try {
+        const method = currentlyRegistered ? 'DELETE' : 'POST';
+        await fetch(`${API}/api/events/${eventId}/register`, {
+            method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({initData}),
+        });
+        loadEventRegistration(eventId);
+    } catch (e) {
+        alert('Ошибка регистрации');
+    }
 }
 
 function detailRow(icon, label, value) {

@@ -5,7 +5,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import select, func, desc, delete
 from contextlib import asynccontextmanager
 from app.database import async_session, init_db
-from app.models import Season, Participant, Event, Result, Subscriber, AdminUser, Nomination
+from app.models import Season, Participant, Event, Result, Subscriber, AdminUser, Nomination, EventRegistration
 from app.config import WEBAPP_DIR, DATA_DIR, BOT_TOKEN, PLACE_POINTS, PARTICIPATION_POINTS
 from app.excel_parser import import_excel_to_db, calculate_points, calculate_total_points
 import hmac
@@ -14,8 +14,50 @@ import json
 import os
 import logging
 import urllib.parse
+import asyncio
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
+
+
+async def notification_scheduler():
+    """Background task: check daily for events 3 days away and notify."""
+    while True:
+        try:
+            await asyncio.sleep(3600)  # Check every hour
+            now = datetime.utcnow()
+            async with async_session() as s:
+                events = await s.execute(
+                    select(Event).where(Event.status == "upcoming")
+                )
+                for ev in events.scalars().all():
+                    if not ev.date:
+                        continue
+                    # Parse date like "20 апреля 2026"
+                    try:
+                        from app.utils import parse_russian_date
+                        event_date = parse_russian_date(ev.date)
+                        if not event_date:
+                            continue
+                        days_until = (event_date - now.date()).days
+                        if days_until == 3:
+                            from app.bot import send_notification_to_all
+                            from app.config import WEBAPP_URL
+                            webapp_url = WEBAPP_URL or "https://web-production-7b91a.up.railway.app"
+                            text = f"⏰ Напоминание!\n\n{ev.emoji} <b>{ev.name}</b> через 3 дня!\n"
+                            if ev.date:
+                                text += f"📅 {ev.date}\n"
+                            if ev.location:
+                                text += f"📍 {ev.location}\n"
+                            text += "\nОткрой приложение для подробностей."
+                            await send_notification_to_all(text, webapp_url)
+                            logger.info(f"Sent 3-day reminder for event: {ev.name}")
+                    except Exception as e:
+                        logger.warning(f"Scheduler parse error for '{ev.date}': {e}")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Notification scheduler error: {e}")
 
 
 @asynccontextmanager
@@ -32,7 +74,11 @@ async def lifespan(application: FastAPI):
             for i, name in enumerate(defaults):
                 s.add(Nomination(name=name, sort_order=i))
             await s.commit()
+
+    # Start background notification scheduler
+    scheduler_task = asyncio.create_task(notification_scheduler())
     yield
+    scheduler_task.cancel()
 
 app = FastAPI(lifespan=lifespan)
 
@@ -890,6 +936,16 @@ async def admin_save_results(event_id: int, request: Request):
         ev.status = "completed"
         await s.commit()
 
+        # Auto-notify about results
+        try:
+            from app.bot import send_notification_to_all
+            from app.config import WEBAPP_URL
+            webapp_url = WEBAPP_URL or "https://web-production-7b91a.up.railway.app"
+            text = f"🏆 Результаты обновлены!\n\n{ev.emoji} <b>{ev.name}</b>\n\nОткрой приложение, чтобы посмотреть рейтинг."
+            asyncio.create_task(send_notification_to_all(text, webapp_url))
+        except Exception as e:
+            logger.warning(f"Auto-notify failed: {e}")
+
     return {"success": True}
 
 
@@ -1040,6 +1096,169 @@ async def user_set_role(request: Request):
 
         await s.commit()
     return {"success": True}
+
+
+# --- Event Registration ---
+
+@app.post("/api/events/{event_id}/register")
+async def register_for_event(event_id: int, request: Request):
+    body = await request.json()
+    init_data_str = body.get("initData", "")
+    user = verify_telegram_init_data(init_data_str)
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    telegram_id = user.get("id")
+    async with async_session() as s:
+        # Check if already registered
+        existing = await s.execute(
+            select(EventRegistration).where(
+                EventRegistration.event_id == event_id,
+                EventRegistration.telegram_id == telegram_id,
+            )
+        )
+        if existing.scalar_one_or_none():
+            return {"success": True, "already": True}
+
+        # Find linked participant
+        sub = await s.execute(select(Subscriber).where(Subscriber.telegram_id == telegram_id))
+        subscriber = sub.scalar_one_or_none()
+        participant_id = subscriber.linked_participant_id if subscriber else None
+
+        reg = EventRegistration(
+            event_id=event_id,
+            telegram_id=telegram_id,
+            participant_id=participant_id,
+            first_name=user.get("first_name"),
+            username=user.get("username"),
+        )
+        s.add(reg)
+        await s.commit()
+        return {"success": True, "already": False}
+
+
+@app.delete("/api/events/{event_id}/register")
+async def unregister_from_event(event_id: int, request: Request):
+    body = await request.json()
+    init_data_str = body.get("initData", "")
+    user = verify_telegram_init_data(init_data_str)
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    telegram_id = user.get("id")
+    async with async_session() as s:
+        await s.execute(
+            delete(EventRegistration).where(
+                EventRegistration.event_id == event_id,
+                EventRegistration.telegram_id == telegram_id,
+            )
+        )
+        await s.commit()
+    return {"success": True}
+
+
+@app.get("/api/events/{event_id}/registrations")
+async def get_event_registrations(event_id: int):
+    async with async_session() as s:
+        result = await s.execute(
+            select(EventRegistration).where(EventRegistration.event_id == event_id).order_by(EventRegistration.created_at)
+        )
+        regs = result.scalars().all()
+        data = []
+        for r in regs:
+            name = r.first_name or "Аноним"
+            if r.participant_id:
+                p = await s.execute(select(Participant).where(Participant.id == r.participant_id))
+                part = p.scalar_one_or_none()
+                if part:
+                    name = part.nickname or part.name
+            data.append({"id": r.id, "name": name, "username": r.username})
+        return {"count": len(data), "registrations": data}
+
+
+@app.get("/api/events/{event_id}/my-registration")
+async def check_my_registration(event_id: int, telegram_id: int = 0):
+    if not telegram_id:
+        return {"registered": False}
+    async with async_session() as s:
+        existing = await s.execute(
+            select(EventRegistration).where(
+                EventRegistration.event_id == event_id,
+                EventRegistration.telegram_id == telegram_id,
+            )
+        )
+        return {"registered": existing.scalar_one_or_none() is not None}
+
+
+# --- News Feed ---
+
+@app.get("/api/feed")
+async def get_feed():
+    """Returns recent activity for the home screen news feed."""
+    async with async_session() as s:
+        res = await s.execute(select(Season).where(Season.is_current == True))
+        season = res.scalar_one_or_none()
+        if not season:
+            return []
+
+        feed = []
+
+        # Upcoming events (next 30 days)
+        upcoming = await s.execute(
+            select(Event).where(
+                Event.season_id == season.id,
+                Event.status == "upcoming",
+            ).order_by(Event.sort_order)
+        )
+        for e in upcoming.scalars().all():
+            feed.append({
+                "type": "upcoming_event",
+                "icon": e.emoji,
+                "title": f"Скоро: {e.name}",
+                "subtitle": f"{e.date or 'дата уточняется'}" + (f" · {e.location}" if e.location else ""),
+                "event_id": e.id,
+            })
+
+        # Recent results (completed events)
+        completed = await s.execute(
+            select(Event).where(
+                Event.season_id == season.id,
+                Event.status == "completed",
+            ).order_by(Event.sort_order.desc()).limit(3)
+        )
+        for e in completed.scalars().all():
+            # Get top-3 for this event
+            top3 = await s.execute(
+                select(Result, Participant)
+                .join(Participant, Result.participant_id == Participant.id)
+                .where(Result.event_id == e.id, Result.points > 0)
+                .order_by(Result.points.desc())
+                .limit(3)
+            )
+            top_names = [f"{'🥇🥈🥉'[i]} {p.nickname or p.name}" for i, (r, p) in enumerate(top3.all())]
+            if top_names:
+                feed.append({
+                    "type": "results",
+                    "icon": e.emoji,
+                    "title": f"Результаты: {e.name}",
+                    "subtitle": ", ".join(top_names),
+                    "event_id": e.id,
+                })
+
+        # New participants count
+        parts = await s.execute(
+            select(func.count(Participant.id)).where(Participant.season_id == season.id)
+        )
+        total = parts.scalar() or 0
+        if total > 0:
+            feed.append({
+                "type": "info",
+                "icon": "👥",
+                "title": f"{total} участников в сезоне",
+                "subtitle": season.name,
+            })
+
+        return feed
 
 
 # --- No-cache middleware for webapp static files ---

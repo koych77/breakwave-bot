@@ -96,6 +96,18 @@ async def init_db():
             )
         """))
 
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS event_registrations (
+                id INTEGER PRIMARY KEY,
+                event_id INTEGER NOT NULL REFERENCES events(id),
+                telegram_id BIGINT NOT NULL,
+                participant_id INTEGER REFERENCES participants(id),
+                first_name VARCHAR(200),
+                username VARCHAR(200),
+                created_at DATETIME
+            )
+        """))
+
         # Add new columns to existing tables if missing
         await _add_column_if_not_exists(conn, "participants", "telegram_id", "BIGINT")
         await _add_column_if_not_exists(conn, "participants", "nickname", "VARCHAR(100)")

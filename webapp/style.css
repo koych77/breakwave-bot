@@ -1257,6 +1257,97 @@ select.form-input option {
     font-size: 14px;
 }
 
+/* News Feed */
+.feed-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.feed-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 6px;
+    transition: all 0.2s;
+}
+
+.feed-item:active {
+    background: var(--bg-card-hover);
+}
+
+.feed-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+    width: 32px;
+    text-align: center;
+}
+
+.feed-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.feed-item-title {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.feed-item-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Event Registration */
+.reg-section {
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+.reg-header {
+    margin-bottom: 10px;
+}
+
+.reg-count {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.reg-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.reg-chip {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-radius: 20px;
+}
+
+.btn-registered {
+    background: var(--green) !important;
+}
+
 /* === Scrollbar === */
 main::-webkit-scrollbar {
     width: 0;

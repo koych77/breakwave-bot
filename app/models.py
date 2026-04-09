@@ -95,6 +95,20 @@ class AdminUser(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class EventRegistration(Base):
+    __tablename__ = "event_registrations"
+
+    id = Column(Integer, primary_key=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    telegram_id = Column(BigInteger, nullable=False)
+    participant_id = Column(Integer, ForeignKey("participants.id"), nullable=True)
+    first_name = Column(String(200), nullable=True)
+    username = Column(String(200), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    event = relationship("Event", backref="registrations")
+
+
 class Nomination(Base):
     __tablename__ = "nominations"
 
