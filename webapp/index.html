@@ -125,8 +125,192 @@
                 <div class="screen-title">📂 История сезонов</div>
                 <div id="seasons-list" class="list-container"></div>
             </div>
+
+            <!-- Admin Panel -->
+            <div id="screen-admin" class="screen">
+                <div class="screen-title">👑 Админ-панель</div>
+                <div class="admin-grid">
+                    <button class="menu-card" onclick="navigate('admin-upload')">
+                        <div class="menu-icon">📤</div>
+                        <div class="menu-label">Загрузить Excel</div>
+                        <div class="menu-desc">Обновить рейтинг</div>
+                    </button>
+                    <button class="menu-card" onclick="navigate('admin-events')">
+                        <div class="menu-icon">📅</div>
+                        <div class="menu-label">Мероприятия</div>
+                        <div class="menu-desc">Добавить / удалить</div>
+                    </button>
+                    <button class="menu-card" onclick="navigate('admin-participants')">
+                        <div class="menu-icon">👥</div>
+                        <div class="menu-label">Участники</div>
+                        <div class="menu-desc">Управление</div>
+                    </button>
+                    <button class="menu-card" onclick="navigate('admin-notify')">
+                        <div class="menu-icon">📢</div>
+                        <div class="menu-label">Уведомление</div>
+                        <div class="menu-desc">Отправить всем</div>
+                    </button>
+                    <button class="menu-card" onclick="navigate('admin-stats')">
+                        <div class="menu-icon">📊</div>
+                        <div class="menu-label">Статистика</div>
+                        <div class="menu-desc">Подписчики</div>
+                    </button>
+                    <button class="menu-card" onclick="navigate('admin-seasons')">
+                        <div class="menu-icon">🔄</div>
+                        <div class="menu-label">Сезоны</div>
+                        <div class="menu-desc">Архив / новый</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Admin: Upload Excel -->
+            <div id="screen-admin-upload" class="screen">
+                <div class="screen-title">📤 Загрузить Excel</div>
+                <div class="admin-form">
+                    <div class="form-hint">Выбери файл .xlsx с результатами Break Wave</div>
+                    <label class="file-upload-label" for="excel-file-input">
+                        <div class="file-upload-icon">📎</div>
+                        <div class="file-upload-text" id="file-name-display">Выбрать файл</div>
+                    </label>
+                    <input type="file" id="excel-file-input" accept=".xlsx,.xls" onchange="onFileSelected(this)" style="display:none">
+                    <button class="btn-primary" id="btn-upload-excel" onclick="uploadExcel()" disabled>📤 Загрузить и обновить</button>
+                    <div id="upload-result"></div>
+                </div>
+            </div>
+
+            <!-- Admin: Events -->
+            <div id="screen-admin-events" class="screen">
+                <div class="screen-title">📅 Управление мероприятиями</div>
+                <button class="btn-primary" onclick="navigate('admin-event-form')" style="margin-bottom:16px">+ Добавить мероприятие</button>
+                <div id="admin-events-list" class="list-container"></div>
+            </div>
+
+            <!-- Admin: Event Form -->
+            <div id="screen-admin-event-form" class="screen">
+                <div class="screen-title" id="event-form-title">📅 Новое мероприятие</div>
+                <div class="admin-form">
+                    <div class="form-group">
+                        <label class="form-label">Тип</label>
+                        <div class="tab-bar">
+                            <button class="tab active" onclick="setEventType('school', this)">🏠 Break Wave</button>
+                            <button class="tab" onclick="setEventType('external', this)">🌍 Другое</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Название *</label>
+                        <input type="text" id="ef-name" class="form-input" placeholder="Spring 2026">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Эмодзи</label>
+                        <input type="text" id="ef-emoji" class="form-input" placeholder="🏆" value="🏆">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Дата</label>
+                        <input type="text" id="ef-date" class="form-input" placeholder="20 апреля 2026">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Время</label>
+                        <input type="text" id="ef-time" class="form-input" placeholder="12:00">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Место</label>
+                        <input type="text" id="ef-location" class="form-input" placeholder="Зал Break Wave">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Описание</label>
+                        <textarea id="ef-description" class="form-input form-textarea" placeholder="Описание мероприятия..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Взнос</label>
+                        <input type="text" id="ef-fee" class="form-input" placeholder="500 руб">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Контакт</label>
+                        <input type="text" id="ef-contact" class="form-input" placeholder="@username">
+                    </div>
+                    <button class="btn-primary" onclick="saveEvent()">💾 Сохранить</button>
+                    <div id="event-form-result"></div>
+                </div>
+            </div>
+
+            <!-- Admin: Participants -->
+            <div id="screen-admin-participants" class="screen">
+                <div class="screen-title">👥 Управление участниками</div>
+                <button class="btn-primary" onclick="navigate('admin-participant-form')" style="margin-bottom:16px">+ Добавить участника</button>
+                <div id="admin-participants-list" class="list-container"></div>
+            </div>
+
+            <!-- Admin: Add Participant -->
+            <div id="screen-admin-participant-form" class="screen">
+                <div class="screen-title">👥 Новый участник</div>
+                <div class="admin-form">
+                    <div class="form-group">
+                        <label class="form-label">Имя *</label>
+                        <input type="text" id="pf-name" class="form-input" placeholder="Bboy Nickname">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Номинация *</label>
+                        <select id="pf-nomination" class="form-input">
+                            <option value="">Выбери номинацию</option>
+                            <option value="до 6 лет">до 6 лет</option>
+                            <option value="1 год обучения">1 год обучения</option>
+                            <option value="до 3 лет опыта">до 3 лет опыта</option>
+                            <option value="7-9 лет">7-9 лет</option>
+                            <option value="10-13 лет">10-13 лет</option>
+                            <option value="Kids Pro">Kids Pro</option>
+                            <option value="Bgirl">Bgirl</option>
+                        </select>
+                    </div>
+                    <button class="btn-primary" onclick="saveParticipant()">💾 Добавить</button>
+                    <div id="participant-form-result"></div>
+                </div>
+            </div>
+
+            <!-- Admin: Notify -->
+            <div id="screen-admin-notify" class="screen">
+                <div class="screen-title">📢 Уведомление</div>
+                <div class="admin-form">
+                    <div class="form-group">
+                        <label class="form-label">Шаблоны</label>
+                        <div class="template-grid">
+                            <button class="template-btn" onclick="setNotifyText('🏆 Результаты обновлены! Открой приложение, чтобы посмотреть новый рейтинг.')">🏆 Результаты</button>
+                            <button class="template-btn" onclick="setNotifyText('📅 Новое мероприятие! Подробности в приложении.')">📅 Мероприятие</button>
+                            <button class="template-btn" onclick="setNotifyText('⏰ Напоминание! До следующего мероприятия осталось 3 дня. Готовься!')">⏰ Напоминание</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Текст уведомления</label>
+                        <textarea id="notify-text" class="form-input form-textarea" rows="4" placeholder="Введи текст..."></textarea>
+                    </div>
+                    <button class="btn-primary" onclick="sendNotify()">📢 Отправить всем</button>
+                    <div id="notify-result"></div>
+                </div>
+            </div>
+
+            <!-- Admin: Stats -->
+            <div id="screen-admin-stats" class="screen">
+                <div class="screen-title">📊 Статистика</div>
+                <div id="admin-stats-content"></div>
+            </div>
+
+            <!-- Admin: Seasons -->
+            <div id="screen-admin-seasons" class="screen">
+                <div class="screen-title">🔄 Управление сезонами</div>
+                <div id="admin-seasons-content"></div>
+                <div class="admin-form" style="margin-top:16px">
+                    <div class="form-group">
+                        <label class="form-label">Название нового сезона</label>
+                        <input type="text" id="new-season-name" class="form-input" placeholder="Сезон 2026/2027">
+                    </div>
+                    <button class="btn-primary btn-danger" onclick="createNewSeason()">🔄 Начать новый сезон</button>
+                    <div class="form-hint" style="margin-top:8px">Текущий сезон будет архивирован. Все данные сохранятся.</div>
+                </div>
+            </div>
         </main>
     </div>
+
+    <!-- Admin FAB button -->
+    <button id="admin-fab" class="admin-fab" onclick="navigate('admin')">👑</button>
 
     <script src="app.js"></script>
 </body>

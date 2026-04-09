@@ -1,12 +1,20 @@
-from fastapi import FastAPI, UploadFile, File, Query
+from fastapi import FastAPI, UploadFile, File, Query, Request, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, delete
 from contextlib import asynccontextmanager
 from app.database import async_session, init_db
 from app.models import Season, Participant, Event, Result, Subscriber
-from app.config import WEBAPP_DIR, DATA_DIR
+from app.config import WEBAPP_DIR, DATA_DIR, BOT_TOKEN
+from app.excel_parser import import_excel_to_db
+import hmac
+import hashlib
+import json
 import os
+import logging
+import urllib.parse
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -434,6 +442,244 @@ async def get_stats(season_id: int = None):
             "total_points": total_points,
             "subscribers": sub_count,
         }
+
+
+# --- Admin helpers ---
+
+def verify_telegram_init_data(init_data: str) -> dict | None:
+    """Verify Telegram WebApp initData and extract user info."""
+    if not init_data or not BOT_TOKEN:
+        return None
+    try:
+        parsed = dict(urllib.parse.parse_qsl(init_data))
+        check_hash = parsed.pop("hash", "")
+        data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed.items()))
+        secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
+        computed_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+        if computed_hash == check_hash:
+            user = json.loads(parsed.get("user", "{}"))
+            return user
+    except Exception as e:
+        logger.warning(f"initData verification failed: {e}")
+    return None
+
+
+def check_admin(init_data: str) -> dict | None:
+    """Check if the user from initData is an admin."""
+    user = verify_telegram_init_data(init_data)
+    if not user:
+        return None
+    from app.config import ADMIN_IDS
+    from app.bot import _dynamic_admins
+    user_id = user.get("id")
+    if ADMIN_IDS and user_id in ADMIN_IDS:
+        return user
+    if user_id in _dynamic_admins:
+        return user
+    return None
+
+
+# --- Admin API ---
+
+@app.post("/api/admin/check")
+async def admin_check(request: Request):
+    body = await request.json()
+    init_data = body.get("initData", "")
+    user = check_admin(init_data)
+    if user:
+        return {"is_admin": True, "user": user}
+    return {"is_admin": False}
+
+
+@app.post("/api/admin/upload-excel")
+async def admin_upload_excel(file: UploadFile = File(...), initData: str = Form("")):
+    user = check_admin(initData)
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    if not file.filename.endswith((".xlsx", ".xls")):
+        return JSONResponse({"error": "invalid file type"}, 400)
+
+    file_path = DATA_DIR / "upload.xlsx"
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    try:
+        async with async_session() as s:
+            result = await import_excel_to_db(s, str(file_path))
+        return {"success": True, **result}
+    except Exception as e:
+        logger.error(f"Excel import error: {e}")
+        return JSONResponse({"error": str(e)}, 500)
+
+
+@app.post("/api/admin/events")
+async def admin_create_event(request: Request):
+    body = await request.json()
+    user = check_admin(body.get("initData", ""))
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    async with async_session() as s:
+        res = await s.execute(select(Season).where(Season.is_current == True))
+        season = res.scalar_one_or_none()
+
+        event = Event(
+            name=body["name"],
+            emoji=body.get("emoji", "🏆"),
+            event_type=body.get("event_type", "external"),
+            season_id=season.id if season else None,
+            date=body.get("date"),
+            time=body.get("time"),
+            location=body.get("location"),
+            description=body.get("description"),
+            fee=body.get("fee"),
+            contact=body.get("contact"),
+            status="upcoming",
+            multiplier=int(body.get("multiplier", 1)),
+            sort_order=100,
+        )
+        s.add(event)
+        await s.commit()
+        return {"success": True, "id": event.id}
+
+
+@app.put("/api/admin/events/{event_id}")
+async def admin_update_event(event_id: int, request: Request):
+    body = await request.json()
+    user = check_admin(body.get("initData", ""))
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    async with async_session() as s:
+        result = await s.execute(select(Event).where(Event.id == event_id))
+        event = result.scalar_one_or_none()
+        if not event:
+            return JSONResponse({"error": "not found"}, 404)
+
+        for field in ["name", "emoji", "event_type", "date", "time", "location", "description", "fee", "contact", "status"]:
+            if field in body:
+                setattr(event, field, body[field])
+        if "multiplier" in body:
+            event.multiplier = int(body["multiplier"])
+        await s.commit()
+        return {"success": True}
+
+
+@app.delete("/api/admin/events/{event_id}")
+async def admin_delete_event(event_id: int, request: Request):
+    body = await request.json()
+    user = check_admin(body.get("initData", ""))
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    async with async_session() as s:
+        await s.execute(delete(Result).where(Result.event_id == event_id))
+        await s.execute(delete(Event).where(Event.id == event_id))
+        await s.commit()
+    return {"success": True}
+
+
+@app.post("/api/admin/participants")
+async def admin_create_participant(request: Request):
+    body = await request.json()
+    user = check_admin(body.get("initData", ""))
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    async with async_session() as s:
+        res = await s.execute(select(Season).where(Season.is_current == True))
+        season = res.scalar_one_or_none()
+        if not season:
+            return JSONResponse({"error": "no active season"}, 400)
+
+        p = Participant(name=body["name"], nomination=body["nomination"], season_id=season.id)
+        s.add(p)
+        await s.flush()
+
+        # Create empty results for all school events
+        events = await s.execute(
+            select(Event).where(Event.season_id == season.id, Event.event_type == "school")
+        )
+        for e in events.scalars().all():
+            s.add(Result(participant_id=p.id, event_id=e.id, points=0))
+
+        await s.commit()
+        return {"success": True, "id": p.id}
+
+
+@app.delete("/api/admin/participants/{participant_id}")
+async def admin_delete_participant(participant_id: int, request: Request):
+    body = await request.json()
+    user = check_admin(body.get("initData", ""))
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    async with async_session() as s:
+        await s.execute(delete(Result).where(Result.participant_id == participant_id))
+        await s.execute(delete(Participant).where(Participant.id == participant_id))
+        await s.commit()
+    return {"success": True}
+
+
+@app.post("/api/admin/notify")
+async def admin_notify(request: Request):
+    body = await request.json()
+    user = check_admin(body.get("initData", ""))
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    text = body.get("text", "")
+    if not text:
+        return JSONResponse({"error": "empty text"}, 400)
+
+    from app.bot import send_notification_to_all
+    from app.config import WEBAPP_URL
+    webapp_url = WEBAPP_URL or "https://web-production-7b91a.up.railway.app"
+    count = await send_notification_to_all(text, webapp_url)
+    return {"success": True, "sent": count}
+
+
+@app.get("/api/admin/stats")
+async def admin_stats():
+    async with async_session() as s:
+        subs_total = await s.execute(select(func.count(Subscriber.id)))
+        subs_active = await s.execute(select(func.count(Subscriber.id)).where(Subscriber.is_active == True))
+
+        res = await s.execute(select(Season).where(Season.is_current == True))
+        season = res.scalar_one_or_none()
+
+        parts_count = 0
+        events_count = 0
+        if season:
+            pc = await s.execute(select(func.count(Participant.id)).where(Participant.season_id == season.id))
+            parts_count = pc.scalar() or 0
+            ec = await s.execute(select(func.count(Event.id)).where(Event.season_id == season.id))
+            events_count = ec.scalar() or 0
+
+        return {
+            "subscribers_total": subs_total.scalar() or 0,
+            "subscribers_active": subs_active.scalar() or 0,
+            "participants": parts_count,
+            "events": events_count,
+        }
+
+
+@app.post("/api/admin/season-new")
+async def admin_new_season(request: Request):
+    body = await request.json()
+    user = check_admin(body.get("initData", ""))
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    name = body.get("name", "Новый сезон")
+    async with async_session() as s:
+        await s.execute(Season.__table__.update().where(Season.is_current == True).values(is_current=False))
+        new_season = Season(name=name, is_current=True)
+        s.add(new_season)
+        await s.commit()
+    return {"success": True}
 
 
 # --- Serve webapp ---

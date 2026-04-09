@@ -6,9 +6,12 @@ const tg = window.Telegram?.WebApp;
 let currentScreen = 'home';
 let screenHistory = [];
 let currentEventTab = 'school';
+let isAdmin = false;
+let initData = '';
+let newEventType = 'school';
 
 // --- Init ---
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     if (tg) {
         tg.ready();
         tg.expand();
@@ -17,7 +20,11 @@ document.addEventListener('DOMContentLoaded', () => {
         tg.backgroundColor = '#0A1628';
         tg.setBackgroundColor?.('#0A1628');
         tg.setHeaderColor?.('#0F2035');
+        initData = tg.initData || '';
     }
+
+    // Check admin status
+    await checkAdmin();
 
     // Check hash for deep link
     const hash = window.location.hash.replace('#', '');
@@ -27,6 +34,24 @@ document.addEventListener('DOMContentLoaded', () => {
         loadHome();
     }
 });
+
+async function checkAdmin() {
+    if (!initData) return;
+    try {
+        const res = await fetch(`${API}/api/admin/check`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({initData}),
+        });
+        const data = await res.json();
+        isAdmin = data.is_admin;
+        if (isAdmin) {
+            document.getElementById('admin-fab').classList.add('visible');
+        }
+    } catch (e) {
+        console.error('Admin check failed:', e);
+    }
+}
 
 // --- Navigation ---
 function navigate(screen, params) {
@@ -79,6 +104,17 @@ function showScreen(screen, params) {
         case 'participant': loadParticipant(params); break;
         case 'dashboard': loadDashboard(); break;
         case 'seasons': loadSeasons(); break;
+        // Admin screens
+        case 'admin-events': loadAdminEvents(); break;
+        case 'admin-participants': loadAdminParticipants(); break;
+        case 'admin-stats': loadAdminStats(); break;
+        case 'admin-seasons': loadAdminSeasons(); break;
+    }
+
+    // Show/hide admin FAB
+    const fab = document.getElementById('admin-fab');
+    if (fab && isAdmin) {
+        fab.style.display = screen.startsWith('admin') ? 'none' : '';
     }
 }
 
@@ -523,6 +559,325 @@ async function loadSeasons() {
             ${s.is_current ? '<div class="season-badge">Текущий</div>' : ''}
         </div>
     `).join('');
+}
+
+// ===========================
+// === ADMIN FUNCTIONS ===
+// ===========================
+
+// --- Admin: Upload Excel ---
+function onFileSelected(input) {
+    const display = document.getElementById('file-name-display');
+    const btn = document.getElementById('btn-upload-excel');
+    if (input.files.length > 0) {
+        display.textContent = input.files[0].name;
+        display.classList.add('selected');
+        btn.disabled = false;
+    } else {
+        display.textContent = 'Выбрать файл';
+        display.classList.remove('selected');
+        btn.disabled = true;
+    }
+}
+
+async function uploadExcel() {
+    const input = document.getElementById('excel-file-input');
+    const result = document.getElementById('upload-result');
+    const btn = document.getElementById('btn-upload-excel');
+
+    if (!input.files.length) return;
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Загрузка...';
+    result.innerHTML = '';
+
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+    formData.append('initData', initData);
+
+    try {
+        const res = await fetch(`${API}/api/admin/upload-excel`, {
+            method: 'POST',
+            body: formData,
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            const events = data.updated_events?.join(', ') || 'нет';
+            result.innerHTML = `<div class="result-success">✅ Обновлено!<br>👥 Участников: ${data.participants}<br>📅 Мероприятия: ${events}</div>`;
+        } else {
+            result.innerHTML = `<div class="result-error">❌ ${data.error || 'Ошибка'}</div>`;
+        }
+    } catch (e) {
+        result.innerHTML = `<div class="result-error">❌ Ошибка сети</div>`;
+    }
+
+    btn.textContent = '📤 Загрузить и обновить';
+    btn.disabled = false;
+}
+
+// --- Admin: Events ---
+async function loadAdminEvents() {
+    const container = document.getElementById('admin-events-list');
+    container.innerHTML = loading();
+
+    const data = await api('/api/events');
+    if (!data || data.length === 0) {
+        container.innerHTML = emptyState('📅', 'Нет мероприятий');
+        return;
+    }
+
+    container.innerHTML = data.map(e => {
+        const typeIcon = e.event_type === 'school' ? '🏠' : '🌍';
+        return `
+            <div class="admin-event-item">
+                <div class="admin-event-info">
+                    <div class="admin-event-name">${e.emoji} ${esc(e.name)}</div>
+                    <div class="admin-event-meta">${typeIcon} ${e.event_type === 'school' ? 'Break Wave' : 'Другое'} · ${e.date || 'без даты'} · ${e.status}</div>
+                </div>
+                <button class="btn-icon-danger" onclick="deleteEvent(${e.id}, '${esc(e.name)}')">🗑</button>
+            </div>
+        `;
+    }).join('');
+}
+
+async function deleteEvent(id, name) {
+    if (!confirm(`Удалить мероприятие "${name}"?`)) return;
+
+    try {
+        const res = await fetch(`${API}/api/admin/events/${id}`, {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({initData}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            loadAdminEvents();
+        }
+    } catch (e) {
+        alert('Ошибка удаления');
+    }
+}
+
+// --- Admin: Event Form ---
+function setEventType(type, btn) {
+    newEventType = type;
+    btn.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+async function saveEvent() {
+    const name = document.getElementById('ef-name').value.trim();
+    if (!name) { alert('Введи название'); return; }
+
+    const result = document.getElementById('event-form-result');
+    result.innerHTML = '';
+
+    const body = {
+        initData,
+        name,
+        emoji: document.getElementById('ef-emoji').value.trim() || '🏆',
+        event_type: newEventType,
+        date: document.getElementById('ef-date').value.trim() || null,
+        time: document.getElementById('ef-time').value.trim() || null,
+        location: document.getElementById('ef-location').value.trim() || null,
+        description: document.getElementById('ef-description').value.trim() || null,
+        fee: document.getElementById('ef-fee').value.trim() || null,
+        contact: document.getElementById('ef-contact').value.trim() || null,
+    };
+
+    try {
+        const res = await fetch(`${API}/api/admin/events`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (data.success) {
+            result.innerHTML = '<div class="result-success">✅ Мероприятие добавлено!</div>';
+            // Clear form
+            ['ef-name', 'ef-date', 'ef-time', 'ef-location', 'ef-description', 'ef-fee', 'ef-contact'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+            document.getElementById('ef-emoji').value = '🏆';
+        } else {
+            result.innerHTML = `<div class="result-error">❌ ${data.error || 'Ошибка'}</div>`;
+        }
+    } catch (e) {
+        result.innerHTML = '<div class="result-error">❌ Ошибка сети</div>';
+    }
+}
+
+// --- Admin: Participants ---
+async function loadAdminParticipants() {
+    const container = document.getElementById('admin-participants-list');
+    container.innerHTML = loading();
+
+    const data = await api('/api/participants');
+    if (!data || data.length === 0) {
+        container.innerHTML = emptyState('👥', 'Нет участников');
+        return;
+    }
+
+    container.innerHTML = data.map(p => `
+        <div class="admin-event-item">
+            <div class="admin-event-info">
+                <div class="admin-event-name">${esc(p.name)}</div>
+                <div class="admin-event-meta">${esc(p.nomination)}</div>
+            </div>
+            <button class="btn-icon-danger" onclick="deleteParticipant(${p.id}, '${esc(p.name)}')">🗑</button>
+        </div>
+    `).join('');
+}
+
+async function deleteParticipant(id, name) {
+    if (!confirm(`Удалить участника "${name}"?`)) return;
+
+    try {
+        const res = await fetch(`${API}/api/admin/participants/${id}`, {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({initData}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            loadAdminParticipants();
+        }
+    } catch (e) {
+        alert('Ошибка удаления');
+    }
+}
+
+async function saveParticipant() {
+    const name = document.getElementById('pf-name').value.trim();
+    const nomination = document.getElementById('pf-nomination').value;
+    const result = document.getElementById('participant-form-result');
+
+    if (!name || !nomination) { alert('Заполни имя и номинацию'); return; }
+    result.innerHTML = '';
+
+    try {
+        const res = await fetch(`${API}/api/admin/participants`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({initData, name, nomination}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            result.innerHTML = '<div class="result-success">✅ Участник добавлен!</div>';
+            document.getElementById('pf-name').value = '';
+            document.getElementById('pf-nomination').value = '';
+        } else {
+            result.innerHTML = `<div class="result-error">❌ ${data.error || 'Ошибка'}</div>`;
+        }
+    } catch (e) {
+        result.innerHTML = '<div class="result-error">❌ Ошибка сети</div>';
+    }
+}
+
+// --- Admin: Notify ---
+function setNotifyText(text) {
+    document.getElementById('notify-text').value = text;
+}
+
+async function sendNotify() {
+    const text = document.getElementById('notify-text').value.trim();
+    const result = document.getElementById('notify-result');
+    if (!text) { alert('Введи текст'); return; }
+
+    result.innerHTML = '';
+
+    try {
+        const res = await fetch(`${API}/api/admin/notify`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({initData, text}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            result.innerHTML = `<div class="result-success">✅ Отправлено ${data.sent} подписчикам!</div>`;
+            document.getElementById('notify-text').value = '';
+        } else {
+            result.innerHTML = `<div class="result-error">❌ ${data.error || 'Ошибка'}</div>`;
+        }
+    } catch (e) {
+        result.innerHTML = '<div class="result-error">❌ Ошибка сети</div>';
+    }
+}
+
+// --- Admin: Stats ---
+async function loadAdminStats() {
+    const container = document.getElementById('admin-stats-content');
+    container.innerHTML = loading();
+
+    try {
+        const res = await fetch(`${API}/api/admin/stats`);
+        const data = await res.json();
+
+        container.innerHTML = `
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-card-value">${data.subscribers_active}</div>
+                    <div class="stat-card-label">Подписчиков</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-value">${data.participants}</div>
+                    <div class="stat-card-label">Участников</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-value">${data.events}</div>
+                    <div class="stat-card-label">Мероприятий</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-value">${data.subscribers_total}</div>
+                    <div class="stat-card-label">Всего подписок</div>
+                </div>
+            </div>
+        `;
+    } catch (e) {
+        container.innerHTML = emptyState('❌', 'Ошибка загрузки');
+    }
+}
+
+// --- Admin: Seasons ---
+async function loadAdminSeasons() {
+    const container = document.getElementById('admin-seasons-content');
+    container.innerHTML = loading();
+
+    const data = await api('/api/seasons');
+    if (!data || data.length === 0) {
+        container.innerHTML = emptyState('📂', 'Нет сезонов');
+        return;
+    }
+
+    container.innerHTML = `<div class="list-container">${data.map(s => `
+        <div class="season-item ${s.is_current ? 'current' : ''}">
+            <div style="font-weight:700">${esc(s.name)}</div>
+            ${s.is_current ? '<div class="season-badge">Текущий</div>' : ''}
+        </div>
+    `).join('')}</div>`;
+}
+
+async function createNewSeason() {
+    const name = document.getElementById('new-season-name').value.trim();
+    if (!name) { alert('Введи название сезона'); return; }
+    if (!confirm(`Начать новый сезон "${name}"? Текущий будет архивирован.`)) return;
+
+    try {
+        const res = await fetch(`${API}/api/admin/season-new`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({initData, name}),
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('✅ Новый сезон создан!');
+            document.getElementById('new-season-name').value = '';
+            loadAdminSeasons();
+        }
+    } catch (e) {
+        alert('Ошибка');
+    }
 }
 
 // --- Util ---
