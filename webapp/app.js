@@ -182,16 +182,16 @@ async function loadHome() {
     if (linkedParticipant) {
         // Show personal shortcut
         personalEl.innerHTML = `
-            <div class="rank-item gold" onclick="navigate('participant', ${linkedParticipant.id})" style="cursor:pointer;margin-bottom:4px">
-                <div class="rank-badge r1">👤</div>
-                <div class="rank-info">
-                    <div class="rank-name">${esc(linkedParticipant.name)}</div>
-                    <div class="rank-nomination">${esc(linkedParticipant.nomination)}</div>
+            <div style="position:relative;margin-bottom:4px">
+                <div class="rank-item gold" onclick="navigate('participant', ${linkedParticipant.id})" style="cursor:pointer">
+                    <div class="rank-badge r1">👤</div>
+                    <div class="rank-info">
+                        <div class="rank-name">${esc(linkedParticipant.name)}</div>
+                        <div class="rank-nomination">${esc(linkedParticipant.nomination)}</div>
+                    </div>
+                    <div style="color:var(--accent);font-size:13px;font-weight:600">Профиль →</div>
                 </div>
-                <div style="color:var(--accent);font-size:13px;font-weight:600">Мой профиль →</div>
-            </div>
-            <div style="margin-top:4px;margin-bottom:4px">
-                <button class="btn-profile-edit" onclick="navigate('my-profile')">✏️ Редактировать профиль</button>
+                <button class="btn-icon-edit btn-profile-corner" onclick="event.stopPropagation();navigate('my-profile')">✏️</button>
             </div>
         `;
         personalEl.style.display = 'block';
