@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Query, Request, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import select, func, desc, delete
 from contextlib import asynccontextmanager
 from app.database import async_session, init_db
@@ -1039,6 +1040,21 @@ async def user_set_role(request: Request):
 
         await s.commit()
     return {"success": True}
+
+
+# --- No-cache middleware for webapp static files ---
+
+class NoCacheMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path.startswith("/webapp") or path == "/":
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+app.add_middleware(NoCacheMiddleware)
 
 
 # --- Serve webapp ---
