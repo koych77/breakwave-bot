@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from app.database import async_session, init_db
 from app.models import Season, Participant, Event, Result, Subscriber, AdminUser, Nomination
 from app.config import WEBAPP_DIR, DATA_DIR, BOT_TOKEN, PLACE_POINTS, PARTICIPATION_POINTS
-from app.excel_parser import import_excel_to_db, calculate_points
+from app.excel_parser import import_excel_to_db, calculate_points, calculate_total_points
 import hmac
 import hashlib
 import json
@@ -26,7 +26,7 @@ async def lifespan(application: FastAPI):
         if count.scalar() == 0:
             defaults = [
                 "до 6 лет", "1 год обучения", "до 3 лет опыта",
-                "7-9 лет", "10-13 лет", "Kids Pro", "Bgirl"
+                "10-13 лет", "Kids Pro", "Bgirl"
             ]
             for i, name in enumerate(defaults):
                 s.add(Nomination(name=name, sort_order=i))
@@ -832,6 +832,80 @@ async def admin_save_results(event_id: int, request: Request):
         ev.status = "completed"
         await s.commit()
 
+    return {"success": True}
+
+
+# --- User binding (participant / guest) ---
+
+@app.post("/api/user/check")
+async def user_check(request: Request):
+    """Check if user has chosen a role. Returns role and linked participant."""
+    body = await request.json()
+    init_data_str = body.get("initData", "")
+    user = verify_telegram_init_data(init_data_str)
+    if not user:
+        return {"role": None}
+
+    telegram_id = user.get("id")
+    async with async_session() as s:
+        result = await s.execute(
+            select(Subscriber).where(Subscriber.telegram_id == telegram_id)
+        )
+        sub = result.scalar_one_or_none()
+        if not sub or not sub.role or sub.role == "":
+            return {"role": None}
+        data = {"role": sub.role, "first_name": sub.first_name}
+        if sub.role == "participant" and sub.linked_participant_id:
+            p = await s.execute(
+                select(Participant).where(Participant.id == sub.linked_participant_id)
+            )
+            part = p.scalar_one_or_none()
+            if part:
+                data["participant"] = {"id": part.id, "name": part.name, "nomination": part.nomination}
+        return data
+
+
+@app.post("/api/user/set-role")
+async def user_set_role(request: Request):
+    """Set user role: 'guest' or 'participant'. If participant, link to participant_id."""
+    body = await request.json()
+    init_data_str = body.get("initData", "")
+    user = verify_telegram_init_data(init_data_str)
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    telegram_id = user.get("id")
+    role = body.get("role", "guest")
+    participant_id = body.get("participant_id")
+
+    async with async_session() as s:
+        result = await s.execute(
+            select(Subscriber).where(Subscriber.telegram_id == telegram_id)
+        )
+        sub = result.scalar_one_or_none()
+        if not sub:
+            sub = Subscriber(
+                telegram_id=telegram_id,
+                first_name=user.get("first_name"),
+                username=user.get("username"),
+                is_active=True,
+            )
+            s.add(sub)
+
+        sub.role = role
+        if role == "participant" and participant_id:
+            sub.linked_participant_id = int(participant_id)
+            # Also link telegram_id on the Participant record
+            p = await s.execute(
+                select(Participant).where(Participant.id == int(participant_id))
+            )
+            part = p.scalar_one_or_none()
+            if part:
+                part.telegram_id = telegram_id
+        else:
+            sub.linked_participant_id = None
+
+        await s.commit()
     return {"success": True}
 
 

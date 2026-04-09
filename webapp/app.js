@@ -9,6 +9,8 @@ let currentEventTab = 'school';
 let isAdmin = false;
 let initData = '';
 let newEventType = 'school';
+let userRole = null;
+let linkedParticipant = null;
 
 // --- Init ---
 document.addEventListener('DOMContentLoaded', async () => {
@@ -23,13 +25,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         initData = tg.initData || '';
     }
 
-    // Check admin status
+    // Check admin status & user role
     await checkAdmin();
+    await checkUserRole();
 
     // Check hash for deep link
     const hash = window.location.hash.replace('#', '');
     if (hash && hash !== '') {
         navigate(hash);
+    } else if (!userRole && initData) {
+        // First time — show onboarding
+        showScreen('onboarding');
     } else {
         loadHome();
     }
@@ -113,6 +119,7 @@ function showScreen(screen, params) {
         case 'admin-nominations': loadAdminNominations(); break;
         case 'admin-results': loadAdminResults(); break;
         case 'admin-results-form': loadAdminResultsForm(params); break;
+        case 'onboarding-link': loadOnboardParticipants(); break;
     }
 
     // Show/hide admin FAB
@@ -166,6 +173,25 @@ async function loadHome() {
     const season = await api('/api/seasons/current');
     if (season && season.name) {
         document.getElementById('season-name').textContent = season.name.toUpperCase();
+    }
+    // Show personal shortcut if linked to participant
+    const personalEl = document.getElementById('home-personal');
+    if (personalEl) {
+        if (linkedParticipant) {
+            personalEl.innerHTML = `
+                <div class="rank-item gold" onclick="navigate('participant', ${linkedParticipant.id})" style="cursor:pointer;margin-bottom:12px">
+                    <div class="rank-badge r1">👤</div>
+                    <div class="rank-info">
+                        <div class="rank-name">${esc(linkedParticipant.name)}</div>
+                        <div class="rank-nomination">${esc(linkedParticipant.nomination)}</div>
+                    </div>
+                    <div style="color:var(--accent);font-size:13px;font-weight:600">Мой профиль →</div>
+                </div>
+            `;
+            personalEl.style.display = 'block';
+        } else {
+            personalEl.style.display = 'none';
+        }
     }
 }
 
@@ -881,6 +907,101 @@ async function createNewSeason() {
         }
     } catch (e) {
         alert('Ошибка');
+    }
+}
+
+// --- User Role / Onboarding ---
+async function checkUserRole() {
+    if (!initData) return;
+    try {
+        const res = await fetch(`${API}/api/user/check`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({initData}),
+        });
+        const data = await res.json();
+        userRole = data.role;
+        if (data.participant) {
+            linkedParticipant = data.participant;
+        }
+    } catch (e) {
+        console.error('User check failed:', e);
+    }
+}
+
+async function chooseRole(role) {
+    if (role === 'participant') {
+        showScreen('onboarding-link');
+        loadOnboardParticipants();
+    } else {
+        await setUserRole('guest', null);
+        showScreen('home');
+        loadHome();
+    }
+}
+
+async function loadOnboardParticipants() {
+    const container = document.getElementById('onboard-results');
+    container.innerHTML = loading();
+    const data = await api('/api/participants');
+    if (!data || data.length === 0) {
+        container.innerHTML = emptyState('🔍', 'Нет участников');
+        return;
+    }
+    renderOnboardList(data);
+}
+
+function renderOnboardList(data) {
+    const container = document.getElementById('onboard-results');
+    container.innerHTML = data.map(p => `
+        <div class="rank-item" onclick="linkParticipant(${p.id}, '${esc(p.name)}', '${esc(p.nomination)}')" style="cursor:pointer">
+            <div class="rank-badge" style="font-size:12px">${esc(p.name.charAt(0))}</div>
+            <div class="rank-info">
+                <div class="rank-name">${esc(p.name)}</div>
+                <div class="rank-nomination">${esc(p.nomination)}</div>
+            </div>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><path d="M9 18L15 12L9 6" stroke="#5A7A96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+    `).join('');
+}
+
+let onboardSearchTimeout;
+function onOnboardSearch(query) {
+    clearTimeout(onboardSearchTimeout);
+    if (!query.trim()) {
+        loadOnboardParticipants();
+        return;
+    }
+    onboardSearchTimeout = setTimeout(async () => {
+        const container = document.getElementById('onboard-results');
+        container.innerHTML = loading();
+        const data = await api(`/api/participants/search?q=${encodeURIComponent(query)}`);
+        if (!data || data.length === 0) {
+            container.innerHTML = emptyState('🔍', 'Не найдено');
+            return;
+        }
+        renderOnboardList(data);
+    }, 300);
+}
+
+async function linkParticipant(id, name, nomination) {
+    if (!confirm(`Это ты? ${name} (${nomination})`)) return;
+    await setUserRole('participant', id);
+    linkedParticipant = {id, name, nomination};
+    showScreen('home');
+    loadHome();
+}
+
+async function setUserRole(role, participantId) {
+    try {
+        await fetch(`${API}/api/user/set-role`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({initData, role, participant_id: participantId}),
+        });
+        userRole = role;
+    } catch (e) {
+        console.error('Set role failed:', e);
     }
 }
 

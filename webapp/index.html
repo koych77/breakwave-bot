@@ -23,6 +23,40 @@
 
         <!-- Screens container -->
         <main id="content">
+            <!-- Onboarding Screen -->
+            <div id="screen-onboarding" class="screen">
+                <div class="home-hero">
+                    <div class="hero-wave"></div>
+                    <h1 class="hero-title">BREAK WAVE</h1>
+                    <p class="hero-subtitle">ДОБРО ПОЖАЛОВАТЬ!</p>
+                </div>
+                <div style="padding:20px">
+                    <div class="screen-title" style="text-align:center;margin-bottom:8px">Кто ты?</div>
+                    <div class="form-hint" style="text-align:center;margin-bottom:20px">Выбери свою роль для персонализации</div>
+                    <div style="display:flex;flex-direction:column;gap:12px">
+                        <button class="menu-card wide" onclick="chooseRole('participant')" style="text-align:left">
+                            <div class="menu-icon">🏆</div>
+                            <div class="menu-label">Я участник</div>
+                            <div class="menu-desc">Привяжи свой профиль к рейтингу</div>
+                        </button>
+                        <button class="menu-card wide" onclick="chooseRole('guest')" style="text-align:left">
+                            <div class="menu-icon">👀</div>
+                            <div class="menu-label">Я гость</div>
+                            <div class="menu-desc">Родитель или зритель</div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Onboarding: Link Participant -->
+            <div id="screen-onboarding-link" class="screen">
+                <div class="screen-title">🔗 Найди себя в списке</div>
+                <div class="search-box">
+                    <input type="text" id="onboard-search" placeholder="Введи своё имя..." oninput="onOnboardSearch(this.value)">
+                </div>
+                <div id="onboard-results" class="list-container"></div>
+            </div>
+
             <!-- Home Screen -->
             <div id="screen-home" class="screen active">
                 <div class="home-hero">
@@ -30,6 +64,7 @@
                     <h1 class="hero-title">BREAK WAVE</h1>
                     <p class="hero-subtitle" id="season-name">RANKING SYSTEM</p>
                 </div>
+                <div id="home-personal" style="display:none;padding:0 16px"></div>
                 <div class="menu-grid">
                     <button class="menu-card" onclick="navigate('ranking')">
                         <div class="menu-icon">🏆</div>
