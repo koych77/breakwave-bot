@@ -809,6 +809,24 @@ async def admin_new_season(request: Request):
     return {"success": True}
 
 
+@app.put("/api/admin/seasons/{season_id}")
+async def admin_update_season(season_id: int, request: Request):
+    body = await request.json()
+    user = await check_admin(body.get("initData", ""))
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, 403)
+
+    async with async_session() as s:
+        result = await s.execute(select(Season).where(Season.id == season_id))
+        season = result.scalar_one_or_none()
+        if not season:
+            return JSONResponse({"error": "not found"}, 404)
+        if "name" in body and body["name"]:
+            season.name = body["name"].strip()
+        await s.commit()
+        return {"success": True}
+
+
 # --- Admin: Nominations CRUD ---
 
 @app.post("/api/admin/nominations")

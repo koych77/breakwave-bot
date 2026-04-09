@@ -405,8 +405,8 @@ async function loadEventDetail(eventId) {
     if (e.location) html += detailRow('📍', 'Место', e.location);
     if (e.description) html += detailRow('📋', 'Описание', e.description);
     if (e.fee) html += detailRow('💰', 'Взнос', e.fee);
-    if (e.contact) html += detailRow('📱', 'Контакт', e.contact);
-    if (e.multiplier > 1) html += detailRow('⚡', 'Множитель баллов', `x${e.multiplier}`);
+    if (e.contact) html += contactRow('📱', 'Контакт', e.contact);
+    if (e.event_type === 'school' && e.multiplier > 1) html += detailRow('⚡', 'Множитель баллов', `x${e.multiplier}`);
 
     if (e.status === 'completed' && e.event_type === 'school') {
         html += `<button class="btn-primary" onclick="navigate('event-results', {id: ${e.id}, name: '${esc(e.emoji)} ${esc(e.name)}'})">🏆 Смотреть результаты</button>`;
@@ -480,12 +480,30 @@ async function toggleRegistration(eventId, currentlyRegistered) {
 }
 
 function detailRow(icon, label, value) {
+    let rendered = esc(String(value)).replace(/\n/g, '<br>');
     return `
         <div class="detail-row">
             <div class="detail-row-icon">${icon}</div>
             <div class="detail-row-content">
                 <div class="detail-row-label">${label}</div>
-                <div class="detail-row-value">${esc(String(value))}</div>
+                <div class="detail-row-value">${rendered}</div>
+            </div>
+        </div>
+    `;
+}
+
+function contactRow(icon, label, value) {
+    let rendered = esc(String(value));
+    // Make @username clickable (Telegram)
+    rendered = rendered.replace(/@([A-Za-z0-9_]{3,})/g, '<a href="https://t.me/$1" target="_blank" style="color:var(--accent);text-decoration:none">@$1</a>');
+    // Make instagram.com links clickable
+    rendered = rendered.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color:var(--accent);text-decoration:none">$1</a>');
+    return `
+        <div class="detail-row">
+            <div class="detail-row-icon">${icon}</div>
+            <div class="detail-row-content">
+                <div class="detail-row-label">${label}</div>
+                <div class="detail-row-value">${rendered}</div>
             </div>
         </div>
     `;
@@ -873,6 +891,12 @@ function setEventType(type, btn) {
     newEventType = type;
     btn.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
+    // Show/hide multiplier field based on type
+    const multGroup = document.getElementById('ef-multiplier-group');
+    if (multGroup) {
+        multGroup.style.display = type === 'school' ? '' : 'none';
+        if (type !== 'school') document.getElementById('ef-multiplier').value = '1';
+    }
 }
 
 function openNewEventForm() {
@@ -1194,10 +1218,27 @@ async function loadAdminSeasons() {
 
     container.innerHTML = `<div class="list-container">${data.map(s => `
         <div class="season-item ${s.is_current ? 'current' : ''}">
-            <div style="font-weight:700">${esc(s.name)}</div>
+            <div style="font-weight:700;flex:1">${esc(s.name)}</div>
             ${s.is_current ? '<div class="season-badge">Текущий</div>' : ''}
+            <button class="btn-icon-edit" onclick="editSeasonName(${s.id}, '${esc(s.name)}')">✏️</button>
         </div>
     `).join('')}</div>`;
+}
+
+async function editSeasonName(id, currentName) {
+    const newName = prompt('Название сезона:', currentName);
+    if (!newName || newName.trim() === currentName) return;
+    try {
+        const res = await fetch(`${API}/api/admin/seasons/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({initData, name: newName.trim()}),
+        });
+        const data = await res.json();
+        if (data.success) loadAdminSeasons();
+    } catch (e) {
+        alert('Ошибка');
+    }
 }
 
 async function createNewSeason() {
