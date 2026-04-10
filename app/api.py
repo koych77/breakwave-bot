@@ -69,20 +69,31 @@ async def notification_scheduler():
             logger.error(f"Notification scheduler error: {e}")
 
 
+DEFAULT_NOMINATIONS = [
+    "до 6 лет",
+    "1 год обучения",
+    "2 год обучения",
+    "до 3х лет опытом",
+    "7-9 лет",
+    "10-13 лет",
+    "Bgirls",
+    "Kids Pro",
+]
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     await init_db()
-    # Seed default nominations if table is empty
+    # Seed/upsert nominations: ensure all defaults exist with correct sort_order
     async with async_session() as s:
-        count = await s.execute(select(func.count(Nomination.id)))
-        if count.scalar() == 0:
-            defaults = [
-                "до 6 лет", "1 год обучения", "до 3 лет опыта",
-                "10-13 лет", "Kids Pro", "Bgirl"
-            ]
-            for i, name in enumerate(defaults):
+        existing = await s.execute(select(Nomination))
+        existing_by_name = {n.name: n for n in existing.scalars().all()}
+        for i, name in enumerate(DEFAULT_NOMINATIONS):
+            if name in existing_by_name:
+                existing_by_name[name].sort_order = i
+            else:
                 s.add(Nomination(name=name, sort_order=i))
-            await s.commit()
+        await s.commit()
 
     # Start background notification scheduler
     scheduler_task = asyncio.create_task(notification_scheduler())

@@ -284,11 +284,12 @@ async function loadNominations() {
     const icons = {
         'до 6 лет': '👶',
         '1 год обучения': '📗',
-        'до 3 лет опыта': '📘',
+        '2 год обучения': '📗',
+        'до 3х лет опытом': '📘',
         '7-9 лет': '📙',
         '10-13 лет': '📕',
         'Kids Pro': '🌟',
-        'Bgirl': '🌸',
+        'Bgirls': '🌸',
     };
 
     container.innerHTML = data.map(n => `
@@ -736,11 +737,12 @@ async function loadDashboard() {
     const icons = {
         'до 6 лет': '👶',
         '1 год обучения': '📗',
-        'до 3 лет опыта': '📘',
+        '2 год обучения': '📗',
+        'до 3х лет опытом': '📘',
         '7-9 лет': '📙',
         '10-13 лет': '📕',
         'Kids Pro': '🌟',
-        'Bgirl': '🌸',
+        'Bgirls': '🌸',
     };
 
     container.innerHTML = data.map(section => {

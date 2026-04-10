@@ -116,6 +116,24 @@ async def init_db():
         await _add_column_if_not_exists(conn, "subscribers", "role", "VARCHAR(20) DEFAULT 'guest'")
         await _add_column_if_not_exists(conn, "subscribers", "linked_participant_id", "INTEGER")
 
+        # One-time rename of legacy nomination names
+        await conn.execute(text(
+            "UPDATE participants SET nomination = 'до 3х лет опытом' WHERE nomination = 'до 3 лет опыта'"
+        ))
+        await conn.execute(text(
+            "UPDATE participants SET nomination = 'Bgirls' WHERE nomination = 'Bgirl'"
+        ))
+        await conn.execute(text(
+            "UPDATE nominations SET name = 'до 3х лет опытом' WHERE name = 'до 3 лет опыта'"
+        ))
+        # Bgirls might collide if both rows exist; delete old then rename
+        await conn.execute(text(
+            "DELETE FROM nominations WHERE name = 'Bgirl' AND EXISTS (SELECT 1 FROM nominations WHERE name = 'Bgirls')"
+        ))
+        await conn.execute(text(
+            "UPDATE nominations SET name = 'Bgirls' WHERE name = 'Bgirl'"
+        ))
+
 
 async def _add_column_if_not_exists(conn, table, column, col_type):
     try:
