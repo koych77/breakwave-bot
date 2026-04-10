@@ -1524,11 +1524,21 @@ async function loadAdminResultsForm(eventId) {
     });
 
     const fmt = v => (v !== null && v !== undefined && v !== '') ? v : '';
+    const noms = Object.keys(groups);
     let html = '<div class="results-hint">Введи место (1, 2, 3) или 0 = участие. Пусто = не участвовал.</div>';
-    for (const [nom, participants] of Object.entries(groups)) {
-        html += `<div class="results-group">`;
+
+    // Nomination tabs
+    html += '<div class="results-noms-tabs">';
+    noms.forEach((nom, i) => {
+        html += `<button type="button" class="results-nom-tab ${i === 0 ? 'active' : ''}" data-nom="${esc(nom)}" onclick="selectResultsNom('${esc(nom).replace(/'/g, "\\'")}')">${esc(nom)} <span class="results-nom-count">${groups[nom].length}</span></button>`;
+    });
+    html += '</div>';
+
+    // Groups (only first visible)
+    noms.forEach((nom, i) => {
+        html += `<div class="results-group" data-nom="${esc(nom)}" style="${i === 0 ? '' : 'display:none'}">`;
         html += `<div class="results-group-title">🏅 ${esc(nom)}</div>`;
-        participants.forEach(p => {
+        groups[nom].forEach(p => {
             const label = p.nickname ? `${esc(p.nickname)} <span class="results-name-sub">${esc(p.name)}</span>` : esc(p.name);
             html += `
                 <div class="results-row-multi" data-pid="${p.participant_id}">
@@ -1559,10 +1569,19 @@ async function loadAdminResultsForm(eventId) {
             `;
         });
         html += `</div>`;
-    }
+    });
 
     container.innerHTML = html;
     document.getElementById('results-form-result').innerHTML = '';
+}
+
+function selectResultsNom(nom) {
+    document.querySelectorAll('.results-nom-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.nom === nom);
+    });
+    document.querySelectorAll('#results-form-content .results-group').forEach(g => {
+        g.style.display = g.dataset.nom === nom ? '' : 'none';
+    });
 }
 
 async function saveResults() {
