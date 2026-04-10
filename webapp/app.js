@@ -259,7 +259,7 @@ async function loadRanking() {
         <div class="rank-item ${rankClass(p.rank)}" onclick="navigate('participant', ${p.id})">
             <div class="rank-badge ${rankBadgeClass(p.rank)}">${p.rank <= 3 ? medalEmoji(p.rank) : p.rank}</div>
             <div class="rank-info">
-                <div class="rank-name">${esc(p.name)}</div>
+                <div class="rank-name">${esc(displayName(p))}</div>
                 <div class="rank-nomination">${esc(p.nomination)}</div>
             </div>
             <div style="text-align:right">
@@ -317,7 +317,7 @@ async function loadNominationDetail(nomination) {
         <div class="rank-item ${rankClass(p.rank)}" onclick="navigate('participant', ${p.id})">
             <div class="rank-badge ${rankBadgeClass(p.rank)}">${p.rank <= 3 ? medalEmoji(p.rank) : p.rank}</div>
             <div class="rank-info">
-                <div class="rank-name">${esc(p.name)}</div>
+                <div class="rank-name">${esc(displayName(p))}</div>
                 <div class="rank-nomination">${esc(p.nomination)}</div>
             </div>
             <div style="text-align:right">
@@ -554,9 +554,9 @@ async function loadSearch() {
 
     container.innerHTML = data.map(p => `
         <div class="rank-item" onclick="navigate('participant', ${p.id})">
-            <div class="rank-badge" style="font-size:12px">${esc(p.name.charAt(0))}</div>
+            <div class="rank-badge" style="font-size:12px">${esc(displayName(p).charAt(0))}</div>
             <div class="rank-info">
-                <div class="rank-name">${esc(p.name)}</div>
+                <div class="rank-name">${esc(displayName(p))}</div>
                 <div class="rank-nomination">${esc(p.nomination)}</div>
             </div>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><path d="M9 18L15 12L9 6" stroke="#5A7A96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -585,9 +585,9 @@ function onSearch(query) {
         }
         searchRes.innerHTML = data.map(p => `
             <div class="rank-item" onclick="navigate('participant', ${p.id})">
-                <div class="rank-badge" style="font-size:12px">${esc(p.name.charAt(0))}</div>
+                <div class="rank-badge" style="font-size:12px">${esc(displayName(p).charAt(0))}</div>
                 <div class="rank-info">
-                    <div class="rank-name">${esc(p.name)}</div>
+                    <div class="rank-name">${esc(displayName(p))}</div>
                     <div class="rank-nomination">${esc(p.nomination)}</div>
                 </div>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><path d="M9 18L15 12L9 6" stroke="#5A7A96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -692,8 +692,8 @@ async function loadParticipant(id) {
     container.innerHTML = `
         <div class="p-card">
             <div class="p-card-header">
-                <div class="p-card-name">${esc(p.name)}</div>
-                ${p.nickname ? `<div class="p-card-nickname">${esc(p.nickname)}</div>` : ''}
+                <div class="p-card-name">${esc(p.nickname || p.name)}</div>
+                ${p.nickname ? `<div class="p-card-nickname">${esc(p.name)}</div>` : ''}
                 <div class="p-card-nomination">${esc(p.nomination)}</div>
                 <div class="p-card-stats">
                     <div class="p-stat">
@@ -759,7 +759,7 @@ async function loadDashboard() {
                 ${section.top3.map(p => `
                     <div class="dash-item" onclick="navigate('participant', ${p.id})" style="cursor:pointer">
                         <div class="dash-medal">${medalEmoji(p.rank)}</div>
-                        <div class="dash-name">${esc(p.name)}</div>
+                        <div class="dash-name">${esc(displayName(p))}</div>
                         <div class="dash-points">${p.total_points} б.</div>
                     </div>
                 `).join('')}
@@ -1523,22 +1523,37 @@ async function loadAdminResultsForm(eventId) {
         groups[p.nomination].push(p);
     });
 
-    let html = '';
+    const fmt = v => (v !== null && v !== undefined && v !== '') ? v : '';
+    let html = '<div class="results-hint">Введи место (1, 2, 3) или 0 = участие. Пусто = не участвовал.</div>';
     for (const [nom, participants] of Object.entries(groups)) {
         html += `<div class="results-group">`;
         html += `<div class="results-group-title">🏅 ${esc(nom)}</div>`;
         participants.forEach(p => {
-            const placeVal = p.main_place !== null ? p.main_place : '';
+            const label = p.nickname ? `${esc(p.nickname)} <span class="results-name-sub">${esc(p.name)}</span>` : esc(p.name);
             html += `
-                <div class="results-row">
-                    <div class="results-name">${esc(p.name)}</div>
-                    <div class="results-input-wrap">
-                        <input type="number" class="results-place-input"
-                               data-pid="${p.participant_id}"
-                               value="${placeVal}"
-                               placeholder="Место"
-                               min="1"
-                               inputmode="numeric">
+                <div class="results-row-multi" data-pid="${p.participant_id}">
+                    <div class="results-name">${label}</div>
+                    <div class="results-inputs-grid">
+                        <label class="results-field">
+                            <span class="results-field-label">Осн</span>
+                            <input type="number" class="results-place-input rp-main"
+                                   value="${fmt(p.main_place)}" placeholder="—" min="0" inputmode="numeric">
+                        </label>
+                        <label class="results-field">
+                            <span class="results-field-label">Доп 1</span>
+                            <input type="number" class="results-place-input rp-e1"
+                                   value="${fmt(p.extra_nom1)}" placeholder="—" min="0" inputmode="numeric">
+                        </label>
+                        <label class="results-field">
+                            <span class="results-field-label">Доп 2</span>
+                            <input type="number" class="results-place-input rp-e2"
+                                   value="${fmt(p.extra_nom2)}" placeholder="—" min="0" inputmode="numeric">
+                        </label>
+                        <label class="results-field">
+                            <span class="results-field-label">Доп 3</span>
+                            <input type="number" class="results-place-input rp-e3"
+                                   value="${fmt(p.extra_nom3)}" placeholder="—" min="0" inputmode="numeric">
+                        </label>
                     </div>
                 </div>
             `;
@@ -1557,14 +1572,20 @@ async function saveResults() {
     btn.textContent = '⏳ Сохранение...';
     resultEl.innerHTML = '';
 
-    const inputs = document.querySelectorAll('.results-place-input');
+    const rows = document.querySelectorAll('.results-row-multi');
     const results = [];
-    inputs.forEach(input => {
-        const pid = parseInt(input.dataset.pid);
-        const val = input.value.trim();
+    const parseVal = el => {
+        const v = el.value.trim();
+        return v !== '' ? parseFloat(v) : null;
+    };
+    rows.forEach(row => {
+        const pid = parseInt(row.dataset.pid);
         results.push({
             participant_id: pid,
-            main_place: val !== '' ? parseFloat(val) : null,
+            main_place: parseVal(row.querySelector('.rp-main')),
+            extra_nom1: parseVal(row.querySelector('.rp-e1')),
+            extra_nom2: parseVal(row.querySelector('.rp-e2')),
+            extra_nom3: parseVal(row.querySelector('.rp-e3')),
         });
     });
 
@@ -1610,4 +1631,8 @@ function esc(str) {
     const div = document.createElement('div');
     div.textContent = String(str);
     return div.innerHTML;
+}
+
+function displayName(p) {
+    return p.nickname || p.name;
 }

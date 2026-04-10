@@ -8,6 +8,15 @@ from app.database import async_session, init_db
 from app.models import Season, Participant, Event, Result, Subscriber, AdminUser, Nomination, EventRegistration
 from app.config import WEBAPP_DIR, DATA_DIR, BOT_TOKEN, PLACE_POINTS, PARTICIPATION_POINTS
 from app.excel_parser import import_excel_to_db, calculate_points, calculate_total_points
+
+
+def _parse_place(v):
+    if v is None or v == "":
+        return None
+    try:
+        return float(v)
+    except (ValueError, TypeError):
+        return None
 import hmac
 import hashlib
 import json
@@ -128,6 +137,7 @@ async def get_ranking(season_id: int = None):
                 ranking.append({
                     "id": p.id,
                     "name": p.name,
+                    "nickname": p.nickname,
                     "nomination": p.nomination,
                     "total_points": total,
                 })
@@ -169,6 +179,7 @@ async def get_ranking_by_nomination(nomination: str, season_id: int = None):
             ranking.append({
                 "id": p.id,
                 "name": p.name,
+                "nickname": p.nickname,
                 "nomination": p.nomination,
                 "total_points": total,
             })
@@ -332,10 +343,14 @@ async def search_participants(q: str = "", season_id: int = None):
                 return []
             season_id = season.id
 
+        from sqlalchemy import or_
         result = await s.execute(
             select(Participant).where(
                 Participant.season_id == season_id,
-                Participant.name.ilike(f"%{q}%")
+                or_(
+                    Participant.name.ilike(f"%{q}%"),
+                    Participant.nickname.ilike(f"%{q}%"),
+                ),
             ).order_by(Participant.name)
         )
         return [{"id": p.id, "name": p.name, "nickname": p.nickname, "nomination": p.nomination, "phone": p.phone, "age": p.age, "telegram_id": p.telegram_id} for p in result.scalars().all()]
@@ -452,7 +467,7 @@ async def get_dashboard(season_id: int = None):
                 res = await s.execute(select(Result).where(Result.participant_id == p.id))
                 total = sum(r.points for r in res.scalars().all())
                 if total > 0:
-                    ranking.append({"id": p.id, "name": p.name, "total_points": total})
+                    ranking.append({"id": p.id, "name": p.name, "nickname": p.nickname, "total_points": total})
 
             ranking.sort(key=lambda x: x["total_points"], reverse=True)
 
@@ -895,8 +910,12 @@ async def admin_event_participants(event_id: int):
             items.append({
                 "participant_id": p.id,
                 "name": p.name,
+                "nickname": p.nickname,
                 "nomination": p.nomination,
                 "main_place": r.main_place if r else None,
+                "extra_nom1": r.extra_nom1 if r else None,
+                "extra_nom2": r.extra_nom2 if r else None,
+                "extra_nom3": r.extra_nom3 if r else None,
                 "points": r.points if r else 0,
             })
 
@@ -926,13 +945,12 @@ async def admin_save_results(event_id: int, request: Request):
 
         for rd in results_data:
             pid = rd["participant_id"]
-            main_place = rd.get("main_place")
-            if main_place is not None and main_place != "":
-                main_place = float(main_place)
-            else:
-                main_place = None
+            main_place = _parse_place(rd.get("main_place"))
+            extra1 = _parse_place(rd.get("extra_nom1"))
+            extra2 = _parse_place(rd.get("extra_nom2"))
+            extra3 = _parse_place(rd.get("extra_nom3"))
 
-            points = calculate_points(main_place, ev.multiplier)
+            points = calculate_total_points(main_place, extra1, extra2, extra3, ev.multiplier)
 
             # Upsert result
             existing = await s.execute(
@@ -941,12 +959,18 @@ async def admin_save_results(event_id: int, request: Request):
             r = existing.scalar_one_or_none()
             if r:
                 r.main_place = main_place
+                r.extra_nom1 = extra1
+                r.extra_nom2 = extra2
+                r.extra_nom3 = extra3
                 r.points = points
             else:
                 s.add(Result(
                     participant_id=pid,
                     event_id=event_id,
                     main_place=main_place,
+                    extra_nom1=extra1,
+                    extra_nom2=extra2,
+                    extra_nom3=extra3,
                     points=points,
                 ))
 
