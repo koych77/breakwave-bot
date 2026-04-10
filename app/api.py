@@ -1263,19 +1263,6 @@ async def get_feed():
                     "event_id": e.id,
                 })
 
-        # New participants count
-        parts = await s.execute(
-            select(func.count(Participant.id)).where(Participant.season_id == season.id)
-        )
-        total = parts.scalar() or 0
-        if total > 0:
-            feed.append({
-                "type": "info",
-                "icon": "👥",
-                "title": f"{total} участников в сезоне",
-                "subtitle": season.name,
-            })
-
         return feed
 
 
