@@ -493,18 +493,57 @@ function detailRow(icon, label, value) {
     `;
 }
 
+function openExternal(url) {
+    try {
+        if (window.tg && /^https?:\/\/t\.me\//i.test(url)) {
+            tg.openTelegramLink(url);
+        } else if (window.tg && tg.openLink) {
+            tg.openLink(url);
+        } else {
+            window.open(url, '_blank');
+        }
+    } catch (e) {
+        window.open(url, '_blank');
+    }
+}
+
+function linkifyContact(value) {
+    // Tokenize the string into links and plain text segments
+    const str = String(value);
+    const re = /(https?:\/\/[^\s]+)|(@[A-Za-z0-9_]{3,})/g;
+    let result = '';
+    let lastIdx = 0;
+    let m;
+    while ((m = re.exec(str)) !== null) {
+        if (m.index > lastIdx) {
+            result += esc(str.slice(lastIdx, m.index));
+        }
+        let url, display;
+        if (m[1]) {
+            url = m[1];
+            display = m[1];
+        } else {
+            url = 'https://t.me/' + m[2].slice(1);
+            display = m[2];
+        }
+        // Escape URL for use inside an HTML attribute value
+        const safeUrl = url.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        result += `<a href="javascript:void(0)" data-url="${safeUrl}" onclick="openExternal(this.dataset.url)" style="color:var(--accent);text-decoration:none">${esc(display)}</a>`;
+        lastIdx = m.index + m[0].length;
+    }
+    if (lastIdx < str.length) {
+        result += esc(str.slice(lastIdx));
+    }
+    return result;
+}
+
 function contactRow(icon, label, value) {
-    let rendered = esc(String(value));
-    // Make @username clickable (Telegram)
-    rendered = rendered.replace(/@([A-Za-z0-9_]{3,})/g, '<a href="https://t.me/$1" target="_blank" style="color:var(--accent);text-decoration:none">@$1</a>');
-    // Make instagram.com links clickable
-    rendered = rendered.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color:var(--accent);text-decoration:none">$1</a>');
     return `
         <div class="detail-row">
             <div class="detail-row-icon">${icon}</div>
             <div class="detail-row-content">
                 <div class="detail-row-label">${label}</div>
-                <div class="detail-row-value">${rendered}</div>
+                <div class="detail-row-value">${linkifyContact(value)}</div>
             </div>
         </div>
     `;
