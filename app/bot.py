@@ -114,27 +114,6 @@ async def cmd_start(message: types.Message):
     )
 
 
-@router.message(Command("crm"))
-async def cmd_crm(message: types.Message):
-    """Open CRM for coaches."""
-    webapp_url = WEBAPP_URL or "https://web-production-7b91a.up.railway.app"
-    
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="📊 Открыть CRM",
-            web_app=WebAppInfo(url=f"{webapp_url}/crm")
-        )],
-    ])
-
-    await message.answer(
-        "📊 <b>CRM Управление учениками</b>\n\n"
-        "Учёт посещений, абонементов и расписания.\n\n"
-        "Нажми кнопку ниже:",
-        parse_mode="HTML",
-        reply_markup=kb,
-    )
-
-
 @router.message(Command("admin"))
 async def cmd_admin(message: types.Message):
     """Handle /admin <secret> command to gain admin access."""
@@ -167,7 +146,6 @@ async def cmd_help(message: types.Message):
     text = (
         "📋 <b>Команды:</b>\n\n"
         "/start — Открыть приложение\n"
-        "/crm — CRM для тренеров\n"
         "/help — Список команд\n"
     )
     if await is_admin(message.from_user.id):
@@ -180,7 +158,6 @@ async def cmd_help(message: types.Message):
             "/notify — уведомление всем\n"
             "/stats — статистика подписчиков\n"
             "/season_new — новый сезон\n"
-            "/crm — CRM для учеников\n"
         )
     await message.answer(text, parse_mode="HTML")
 
