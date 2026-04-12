@@ -35,7 +35,7 @@ html, body {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
     background: var(--bg-primary);
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
@@ -546,6 +546,9 @@ main {
 .event-detail-emoji {
     font-size: 48px;
     margin-bottom: 8px;
+    line-height: 1.2;
+    text-align: center;
+    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif;
 }
 
 .event-detail-name {
@@ -780,6 +783,8 @@ main {
     width: 36px;
     text-align: center;
     flex-shrink: 0;
+    line-height: 1.2;
+    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif;
 }
 
 .p-event-info {
@@ -887,6 +892,8 @@ main {
 .empty-state-icon {
     font-size: 48px;
     margin-bottom: 12px;
+    line-height: 1.2;
+    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif;
 }
 
 .empty-state-icon img {
@@ -1568,3 +1575,10 @@ select.form-input option {
 main::-webkit-scrollbar {
     width: 0;
 }
+
+ 
+ / *   E m o j i   s u p p o r t   * / 
+ 
+ . e v e n t - c a r d - n a m e ,   . a d m i n - e v e n t - n a m e ,   . p - b d - e v e n t - n a m e ,   . r e s u l t - s u c c e s s ,   . d e t a i l - l a b e l ,   . d e t a i l - v a l u e   {   f o n t - f a m i l y :   ' A p p l e   C o l o r   E m o j i ' ,   ' S e g o e   U I   E m o j i ' ,   ' S e g o e   U I   S y m b o l ' ,   ' N o t o   C o l o r   E m o j i ' ,   - a p p l e - s y s t e m ,   B l i n k M a c S y s t e m F o n t ,   s a n s - s e r i f ;   } 
+ 
+ 
