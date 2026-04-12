@@ -8,6 +8,7 @@ from app.database import async_session, init_db
 from app.models import Season, Participant, Event, Result, Subscriber, AdminUser, Nomination, EventRegistration
 from app.config import WEBAPP_DIR, DATA_DIR, BOT_TOKEN, PLACE_POINTS, PARTICIPATION_POINTS
 from app.excel_parser import import_excel_to_db, calculate_points, calculate_total_points
+from app.crm_api import router as crm_router
 
 
 def _parse_place(v):
@@ -101,6 +102,9 @@ async def lifespan(application: FastAPI):
     scheduler_task.cancel()
 
 app = FastAPI(lifespan=lifespan)
+
+# Include CRM routes
+app.include_router(crm_router)
 
 
 # --- Seasons ---
@@ -1324,3 +1328,8 @@ app.mount("/webapp", StaticFiles(directory=str(WEBAPP_DIR), html=True), name="we
 @app.get("/")
 async def root():
     return FileResponse(str(WEBAPP_DIR / "index.html"))
+
+
+@app.get("/crm")
+async def crm_root():
+    return FileResponse(str(WEBAPP_DIR / "crm.html"))

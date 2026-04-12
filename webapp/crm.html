@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>CRM - Управление учениками</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: var(--bg-color, #0d1117);
+            color: var(--text-color, #c9d1d9);
+        }
+        .container { padding: 16px; max-width: 600px; margin: 0 auto; }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1a5fb4 0%, #1c71d8 100%);
+            padding: 20px;
+            border-radius: 0 0 20px 20px;
+            margin: -16px -16px 20px -16px;
+        }
+        .header h1 { margin: 0; font-size: 24px; color: white; }
+        .header p { margin: 5px 0 0 0; opacity: 0.9; color: white; font-size: 14px; }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background: #21262d;
+            border: none;
+            border-radius: 20px;
+            color: #8b949e;
+            cursor: pointer;
+            white-space: nowrap;
+            font-size: 14px;
+        }
+        .tab.active {
+            background: #1f6feb;
+            color: white;
+        }
+        
+        /* Cards */
+        .card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .card-title { font-weight: 600; font-size: 16px; margin: 0; }
+        .card-subtitle { color: #8b949e; font-size: 13px; margin-top: 4px; }
+        
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary { background: #1f6feb; color: white; }
+        .btn-danger { background: #da3633; color: white; }
+        .btn-success { background: #238636; color: white; }
+        .btn-secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+        .btn-block { width: 100%; justify-content: center; }
+        
+        /* Forms */
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; margin-bottom: 6px; font-size: 13px; color: #8b949e; }
+        .form-input, .form-select {
+            width: 100%;
+            padding: 12px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            color: #c9d1d9;
+            font-size: 15px;
+        }
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #1f6feb;
+        }
+        
+        /* Checkbox */
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+        .checkbox-label input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: #1f6feb;
+        }
+        
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+        .stat-value { font-size: 28px; font-weight: 700; color: #1f6feb; }
+        .stat-label { font-size: 12px; color: #8b949e; margin-top: 4px; }
+        
+        /* Alert badges */
+        .badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge-warning { background: #f0883e33; color: #f0883e; }
+        .badge-danger { background: #da363333; color: #da3633; }
+        .badge-success { background: #23863633; color: #238636; }
+        
+        /* Lists */
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #30363d;
+        }
+        .list-item:last-child { border-bottom: none; }
+        
+        /* Hide/show */
+        .hidden { display: none !important; }
+        
+        /* Location selector */
+        .location-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 16px;
+            font-size: 13px;
+            margin: 4px;
+            cursor: pointer;
+        }
+        .location-tag.active {
+            background: #1f6feb;
+            border-color: #1f6feb;
+        }
+        
+        /* Day selector */
+        .day-selector {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .day-btn {
+            width: 40px;
+            height: 40px;
+            border: 1px solid #30363d;
+            background: #0d1117;
+            color: #8b949e;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .day-btn.active {
+            background: #1f6feb;
+            border-color: #1f6feb;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>📊 CRM Управление</h1>
+            <p>Учёт учеников и посещений</p>
+        </div>
+        
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="dashboard">Обзор</button>
+            <button class="tab" data-tab="students">Ученики</button>
+            <button class="tab" data-tab="locations">Залы</button>
+            <button class="tab" data-tab="attendance">Посещения</button>
+        </div>
+        
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-total">0</div>
+                    <div class="stat-label">Всего учеников</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-unlimited">0</div>
+                    <div class="stat-label">Безлимит</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">📅 Сегодня (<span id="today-date"></span>)</h3>
+                </div>
+                <div id="today-lessons"></div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">⚠️ Мало занятий</h3>
+                </div>
+                <div id="low-lessons"></div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">💰 Оплата</h3>
+                </div>
+                <div id="payments-due"></div>
+            </div>
+        </div>
+        
+        <!-- Students Tab -->
+        <div id="students" class="tab-content hidden">
+            <div class="card">
+                <button class="btn btn-primary btn-block" onclick="showAddStudent()">
+                    ➕ Добавить ученика
+                </button>
+            </div>
+            
+            <div class="form-group">
+                <input type="text" class="form-input" id="search-input" placeholder="🔍 Поиск по имени или телефону...">
+            </div>
+            
+            <div id="students-list"></div>
+        </div>
+        
+        <!-- Locations Tab -->
+        <div id="locations" class="tab-content hidden">
+            <div class="card">
+                <button class="btn btn-primary btn-block" onclick="showAddLocation()">
+                    ➕ Добавить зал
+                </button>
+            </div>
+            <div id="locations-list"></div>
+        </div>
+        
+        <!-- Attendance Tab -->
+        <div id="attendance" class="tab-content hidden">
+            <div class="card">
+                <div class="form-group">
+                    <label class="form-label">Дата</label>
+                    <input type="date" class="form-input" id="attendance-date">
+                </div>
+                <button class="btn btn-primary btn-block" onclick="loadAttendance()">
+                    🔄 Обновить
+                </button>
+            </div>
+            <div id="attendance-list"></div>
+        </div>
+    </div>
+    
+    <!-- Add Location Modal -->
+    <div id="modal-location" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; padding: 20px;">
+        <div class="card" style="max-width: 400px; margin: 50px auto;">
+            <h3>Добавить зал</h3>
+            <div class="form-group">
+                <label class="form-label">Название зала</label>
+                <input type="text" class="form-input" id="loc-name" placeholder="Например: Основной зал">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Адрес (необязательно)</label>
+                <input type="text" class="form-input" id="loc-address" placeholder="Адрес">
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-secondary btn-block" onclick="hideModal('modal-location')">Отмена</button>
+                <button class="btn btn-primary btn-block" onclick="saveLocation()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Student Modal -->
+    <div id="modal-student" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; padding: 20px; overflow-y: auto;">
+        <div class="card" style="max-width: 500px; margin: 20px auto;">
+            <h3>Добавить ученика</h3>
+            
+            <div class="form-group">
+                <label class="form-label">Имя *</label>
+                <input type="text" class="form-input" id="st-name" placeholder="Имя ученика">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Телефон</label>
+                <input type="tel" class="form-input" id="st-phone" placeholder="+375...">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Возраст</label>
+                <input type="number" class="form-input" id="st-age" placeholder="Возраст">
+            </div>
+            
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="st-unlimited">
+                    <span>Безлимит (не отнимать занятия)</span>
+                </label>
+            </div>
+            
+            <div id="limited-fields">
+                <div class="form-group">
+                    <label class="form-label">Количество занятий</label>
+                    <input type="number" class="form-input" id="st-lessons" value="8" min="1">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Продолжительность (мин)</label>
+                <input type="number" class="form-input" id="st-duration" value="90" min="30">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Стоимость абонемента (Br)</label>
+                <input type="number" class="form-input" id="st-amount" value="0" min="0">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Дата начала</label>
+                <input type="date" class="form-input" id="st-start">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Дата окончания</label>
+                <input type="date" class="form-input" id="st-end">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Залы и расписание</label>
+                <div id="student-locations"></div>
+                <button type="button" class="btn btn-secondary btn-block" onclick="addStudentLocation()" style="margin-top: 10px;">
+                    ➕ Добавить зал
+                </button>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-secondary btn-block" onclick="hideModal('modal-student')">Отмена</button>
+                <button class="btn btn-primary btn-block" onclick="saveStudent()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Mark Attendance Modal -->
+    <div id="modal-attendance" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; padding: 20px;">
+        <div class="card" style="max-width: 400px; margin: 50px auto;">
+            <h3>Отметить посещение</h3>
+            <div class="form-group">
+                <label class="form-label">Ученик</label>
+                <select class="form-select" id="att-student"></select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Зал</label>
+                <select class="form-select" id="att-location"></select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Время</label>
+                <input type="time" class="form-input" id="att-time">
+            </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="att-extra">
+                    <span>Дополнительное (не отнимать занятие)</span>
+                </label>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-secondary btn-block" onclick="hideModal('modal-attendance')">Отмена</button>
+                <button class="btn btn-primary btn-block" onclick="saveAttendance()">Отметить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+        
+        const API_URL = window.location.origin;
+        let locations = [];
+        let students = [];
+        let studentLocationCount = 0;
+        
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set today date
+            document.getElementById('today-date').textContent = new Date().toLocaleDateString('ru-RU');
+            document.getElementById('attendance-date').valueAsDate = new Date();
+            
+            // Tab switching
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+            });
+            
+            // Unlimited toggle
+            document.getElementById('st-unlimited').addEventListener('change', (e) => {
+                document.getElementById('limited-fields').classList.toggle('hidden', e.target.checked);
+            });
+            
+            // Search
+            document.getElementById('search-input').addEventListener('input', debounce(searchStudents, 300));
+            
+            // Load initial data
+            loadDashboard();
+            loadLocations();
+        });
+        
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('hidden', c.id !== tabName));
+            
+            if (tabName === 'dashboard') loadDashboard();
+            if (tabName === 'students') loadStudents();
+            if (tabName === 'locations') loadLocations();
+            if (tabName === 'attendance') loadAttendance();
+        }
+        
+        function debounce(fn, ms) {
+            let timeout;
+            return (...args) => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => fn(...args), ms);
+            };
+        }
+        
+        // API calls
+        async function api(endpoint, data = {}) {
+            const response = await fetch(`${API_URL}/api/crm${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...data, initData: tg.initData })
+            });
+            return response.json();
+        }
+        
+        // Dashboard
+        async function loadDashboard() {
+            const data = await api('/dashboard');
+            if (data.error) return;
+            
+            document.getElementById('stat-total').textContent = data.total_students;
+            document.getElementById('stat-unlimited').textContent = data.unlimited_count;
+            
+            // Today's lessons
+            const lessonsEl = document.getElementById('today-lessons');
+            if (data.today_lessons.length === 0) {
+                lessonsEl.innerHTML = '<p style="color: #8b949e;">Нет занятий на сегодня</p>';
+            } else {
+                lessonsEl.innerHTML = data.today_lessons.map(l => `
+                    <div class="list-item">
+                        <div>
+                            <div>${l.student_name}</div>
+                            <div class="card-subtitle">${l.location_name} • ${l.time}</div>
+                        </div>
+                        <div>
+                            ${l.is_unlimited 
+                                ? '<span class="badge badge-success">Безлим</span>'
+                                : `<span class="badge ${l.lessons_remaining <= 2 ? 'badge-warning' : ''}">${l.lessons_remaining} зн</span>`
+                            }
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            // Low lessons
+            const lowEl = document.getElementById('low-lessons');
+            if (data.low_lessons.length === 0) {
+                lowEl.innerHTML = '<p style="color: #8b949e;">Все в порядке</p>';
+            } else {
+                lowEl.innerHTML = data.low_lessons.map(s => `
+                    <div class="list-item">
+                        <span>${s.name}</span>
+                        <span class="badge badge-danger">${s.lessons_remaining} занятий</span>
+                    </div>
+                `).join('');
+            }
+            
+            // Payments due
+            const payEl = document.getElementById('payments-due');
+            if (data.payments_due.length === 0) {
+                payEl.innerHTML = '<p style="color: #8b949e;">Нет просроченных</p>';
+            } else {
+                payEl.innerHTML = data.payments_due.map(p => `
+                    <div class="list-item">
+                        <span>${p.name}</span>
+                        <span class="badge ${p.expired ? 'badge-danger' : 'badge-warning'}">
+                            ${p.expired ? 'Просрочено' : p.days_left + ' дн'}
+                        </span>
+                    </div>
+                `).join('');
+            }
+        }
+        
+        // Locations
+        async function loadLocations() {
+            const data = await api('/locations');
+            locations = data;
+            
+            const list = document.getElementById('locations-list');
+            if (data.length === 0) {
+                list.innerHTML = '<p style="color: #8b949e; text-align: center;">Нет залов. Добавьте первый!</p>';
+            } else {
+                list.innerHTML = data.map(l => `
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <div class="card-title">📍 ${l.name}</div>
+                                ${l.address ? `<div class="card-subtitle">${l.address}</div>` : ''}
+                            </div>
+                            <button class="btn btn-danger" onclick="deleteLocation(${l.id})">🗑</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            updateStudentLocations();
+        }
+        
+        function showAddLocation() {
+            document.getElementById('loc-name').value = '';
+            document.getElementById('loc-address').value = '';
+            showModal('modal-location');
+        }
+        
+        async function saveLocation() {
+            const name = document.getElementById('loc-name').value.trim();
+            if (!name) {
+                tg.showAlert('Введите название зала');
+                return;
+            }
+            
+            const result = await api('/locations/create', {
+                name: name,
+                address: document.getElementById('loc-address').value.trim()
+            });
+            
+            if (result.error) {
+                tg.showAlert(result.error);
+            } else {
+                hideModal('modal-location');
+                loadLocations();
+            }
+        }
+        
+        async function deleteLocation(id) {
+            if (!confirm('Удалить зал?')) return;
+            await api(`/locations/${id}/delete`, {});
+            loadLocations();
+        }
+        
+        // Students
+        async function loadStudents() {
+            const data = await api('/students', { active_only: true });
+            students = data;
+            renderStudents(data);
+        }
+        
+        function renderStudents(data) {
+            const list = document.getElementById('students-list');
+            if (data.length === 0) {
+                list.innerHTML = '<p style="color: #8b949e; text-align: center;">Нет учеников</p>';
+            } else {
+                list.innerHTML = data.map(s => `
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <div class="card-title">${s.name}</div>
+                                <div class="card-subtitle">
+                                    ${s.locations.map(l => l.name).join(', ') || 'Нет залов'}
+                                </div>
+                            </div>
+                            <div>
+                                ${s.is_unlimited 
+                                    ? '<span class="badge badge-success">Безлим</span>'
+                                    : `<span class="badge ${s.lessons_remaining <= 2 ? 'badge-danger' : ''}">${s.lessons_remaining}/${s.lessons_count}</span>`
+                                }
+                            </div>
+                        </div>
+                        ${s.phone ? `<div style="margin-bottom: 8px;">📱 ${s.phone}</div>` : ''}
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-primary btn-block" onclick="markAttendanceForStudent(${s.id})">✅ Отметить</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+        
+        async function searchStudents() {
+            const query = document.getElementById('search-input').value.trim();
+            if (!query) {
+                renderStudents(students);
+                return;
+            }
+            const data = await api('/search', { q: query });
+            renderStudents(data);
+        }
+        
+        function showAddStudent() {
+            document.getElementById('st-name').value = '';
+            document.getElementById('st-phone').value = '';
+            document.getElementById('st-age').value = '';
+            document.getElementById('st-unlimited').checked = false;
+            document.getElementById('st-lessons').value = '8';
+            document.getElementById('st-duration').value = '90';
+            document.getElementById('st-amount').value = '0';
+            document.getElementById('limited-fields').classList.remove('hidden');
+            
+            // Set default dates
+            const today = new Date();
+            document.getElementById('st-start').valueAsDate = today;
+            const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
+            document.getElementById('st-end').valueAsDate = nextMonth;
+            
+            studentLocationCount = 0;
+            document.getElementById('student-locations').innerHTML = '';
+            addStudentLocation();
+            
+            showModal('modal-student');
+        }
+        
+        function addStudentLocation() {
+            if (locations.length === 0) {
+                tg.showAlert('Сначала добавьте зал в разделе "Залы"');
+                return;
+            }
+            
+            studentLocationCount++;
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.style.marginBottom = '10px';
+            div.innerHTML = `
+                <div class="form-group">
+                    <label class="form-label">Зал</label>
+                    <select class="form-select" id="st-loc-${studentLocationCount}">
+                        ${locations.map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Дни недели</label>
+                    <div class="day-selector">
+                        ${['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map((d, i) => `
+                            <button type="button" class="day-btn" data-day="${i}" onclick="toggleDay(this)">${d}</button>
+                        `).join('')}
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Время (по умолчанию)</label>
+                    <input type="time" class="form-input" id="st-time-${studentLocationCount}" value="18:00">
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="st-primary-${studentLocationCount}" ${studentLocationCount === 1 ? 'checked' : ''}>
+                        <span>Основной зал</span>
+                    </label>
+                </div>
+            `;
+            document.getElementById('student-locations').appendChild(div);
+        }
+        
+        function toggleDay(btn) {
+            btn.classList.toggle('active');
+        }
+        
+        async function saveStudent() {
+            const name = document.getElementById('st-name').value.trim();
+            if (!name) {
+                tg.showAlert('Введите имя ученика');
+                return;
+            }
+            
+            // Collect locations
+            const studentLocations = [];
+            for (let i = 1; i <= studentLocationCount; i++) {
+                const locId = document.getElementById(`st-loc-${i}`)?.value;
+                if (!locId) continue;
+                
+                const days = Array.from(document.querySelectorAll(`#student-locations .card:nth-child(${i}) .day-btn.active`))
+                    .map(b => b.dataset.day).join(',');
+                
+                studentLocations.push({
+                    location_id: parseInt(locId),
+                    lesson_days: days || '1,3',
+                    lesson_times: { default: document.getElementById(`st-time-${i}`).value || '18:00' },
+                    is_primary: document.getElementById(`st-primary-${i}`)?.checked || false,
+                });
+            }
+            
+            const data = {
+                name: name,
+                phone: document.getElementById('st-phone').value.trim() || null,
+                age: document.getElementById('st-age').value ? parseInt(document.getElementById('st-age').value) : null,
+                is_unlimited: document.getElementById('st-unlimited').checked,
+                lessons_count: parseInt(document.getElementById('st-lessons').value) || 8,
+                lesson_duration: parseInt(document.getElementById('st-duration').value) || 90,
+                amount: parseFloat(document.getElementById('st-amount').value) || 0,
+                subscription_start: document.getElementById('st-start').value || null,
+                subscription_end: document.getElementById('st-end').value || null,
+                locations: studentLocations,
+            };
+            
+            const result = await api('/students/create', data);
+            if (result.error) {
+                tg.showAlert(result.error);
+            } else {
+                hideModal('modal-student');
+                loadStudents();
+                loadDashboard();
+            }
+        }
+        
+        function updateStudentLocations() {
+            // Update location selector in attendance modal
+            const select = document.getElementById('att-location');
+            select.innerHTML = locations.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+        }
+        
+        // Attendance
+        async function loadAttendance() {
+            const date = document.getElementById('attendance-date').value;
+            const data = await api('/attendance/today', { date: date });
+            
+            const list = document.getElementById('attendance-list');
+            if (data.attendance.length === 0) {
+                list.innerHTML = `
+                    <div class="card">
+                        <p style="color: #8b949e; text-align: center;">Нет отметок на эту дату</p>
+                        <button class="btn btn-primary btn-block" onclick="showAttendanceModal()">➕ Отметить</button>
+                    </div>
+                `;
+            } else {
+                list.innerHTML = `
+                    <div class="card">
+                        <button class="btn btn-primary btn-block" onclick="showAttendanceModal()">➕ Отметить посещение</button>
+                    </div>
+                    ${data.attendance.map(a => `
+                        <div class="card">
+                            <div class="card-header">
+                                <div>
+                                    <div class="card-title">${a.student_name}</div>
+                                    <div class="card-subtitle">${a.location_name || 'Без зала'} • ${a.time || ''}</div>
+                                </div>
+                                ${a.is_extra ? '<span class="badge badge-warning">Доп</span>' : ''}
+                            </div>
+                            <button class="btn btn-danger btn-block" onclick="unmarkAttendance(${a.id})">❌ Удалить отметку</button>
+                        </div>
+                    `).join('')}
+                `;
+            }
+        }
+        
+        function showAttendanceModal() {
+            const studentSelect = document.getElementById('att-student');
+            studentSelect.innerHTML = students.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            document.getElementById('att-time').value = new Date().toTimeString().slice(0, 5);
+            document.getElementById('att-extra').checked = false;
+            showModal('modal-attendance');
+        }
+        
+        function markAttendanceForStudent(studentId) {
+            const studentSelect = document.getElementById('att-student');
+            studentSelect.innerHTML = students.map(s => 
+                `<option value="${s.id}" ${s.id === studentId ? 'selected' : ''}>${s.name}</option>`
+            ).join('');
+            document.getElementById('att-time').value = new Date().toTimeString().slice(0, 5);
+            document.getElementById('att-extra').checked = false;
+            showModal('modal-attendance');
+        }
+        
+        async function saveAttendance() {
+            const data = {
+                student_id: parseInt(document.getElementById('att-student').value),
+                location_id: parseInt(document.getElementById('att-location').value) || null,
+                date: document.getElementById('attendance-date').value,
+                time: document.getElementById('att-time').value,
+                is_extra: document.getElementById('att-extra').checked,
+            };
+            
+            const result = await api('/attendance/mark', data);
+            if (result.error) {
+                tg.showAlert(result.error);
+            } else {
+                hideModal('modal-attendance');
+                loadAttendance();
+                loadDashboard();
+                tg.showAlert(`Отмечено! Осталось занятий: ${result.lessons_remaining}`);
+            }
+        }
+        
+        async function unmarkAttendance(id) {
+            if (!confirm('Удалить отметку?')) return;
+            const result = await api('/attendance/unmark', { attendance_id: id });
+            loadAttendance();
+            loadDashboard();
+        }
+        
+        // Modal helpers
+        function showModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+        
+        function hideModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
