@@ -1581,4 +1581,11 @@ main::-webkit-scrollbar {
  
  . e v e n t - c a r d - n a m e ,   . a d m i n - e v e n t - n a m e ,   . p - b d - e v e n t - n a m e ,   . r e s u l t - s u c c e s s ,   . d e t a i l - l a b e l ,   . d e t a i l - v a l u e   {   f o n t - f a m i l y :   ' A p p l e   C o l o r   E m o j i ' ,   ' S e g o e   U I   E m o j i ' ,   ' S e g o e   U I   S y m b o l ' ,   ' N o t o   C o l o r   E m o j i ' ,   - a p p l e - s y s t e m ,   B l i n k M a c S y s t e m F o n t ,   s a n s - s e r i f ;   } 
  
+  
+ / *   E m o j i   i c o n s   * /  
+ . u i - i c o n   {   f o n t - f a m i l y :   ' N o t o   C o l o r   E m o j i ' ,   ' A p p l e   C o l o r   E m o j i ' ,   s a n s - s e r i f ;   f o n t - s t y l e :   n o r m a l ;   l i n e - h e i g h t :   1 ;   d i s p l a y :   i n l i n e - f l e x ;   a l i g n - i t e m s :   c e n t e r ;   j u s t i f y - c o n t e n t :   c e n t e r ;   }  
+ . u i - i c o n - t i t l e   {   f o n t - s i z e :   2 4 p x ;   m a r g i n - r i g h t :   8 p x ;   }  
+ . u i - i c o n - m e n u   {   f o n t - s i z e :   3 2 p x ;   }  
+ . u i - i c o n - b t n   {   f o n t - s i z e :   1 8 p x ;   m a r g i n - r i g h t :   6 p x ;   }  
+ . u i - i c o n - t a b   {   f o n t - s i z e :   1 6 p x ;   m a r g i n - r i g h t :   4 p x ;   }  
  
